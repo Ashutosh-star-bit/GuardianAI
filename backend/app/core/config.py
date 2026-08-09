@@ -48,7 +48,7 @@ class SecuritySettings(BaseSettings):
 class CorsSettings(BaseSettings):
     """Cross-Origin Resource Sharing (CORS) Whitelist Settings."""
     CORS_ORIGINS: Union[str, List[str]] = Field(
-        default="http://localhost:5173,http://127.0.0.1:5173",
+        default="*,http://localhost:5173,http://127.0.0.1:5173",
         description="Allowed CORS origin domains (comma-separated string or JSON list)"
     )
 

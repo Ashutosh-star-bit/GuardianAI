@@ -138,7 +138,7 @@ app.add_middleware(RateLimitMiddleware, requests_per_minute=120)
 if settings.ENVIRONMENT in ["production", "staging"]:
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "*.guardianai.io"]
+        allowed_hosts=["*", "localhost", "127.0.0.1", "*.guardianai.io", "*.onrender.com", "*.vercel.app"]
     )
 
 # Configure CORS Middleware
