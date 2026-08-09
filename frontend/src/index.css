@@ -1,0 +1,297 @@
+/* GuardianAI Master Global CSS & Design System Tokens */
+/* Purpose: Imports Tailwind directives, configures Theme modes, Senior Mode accessibility overrides, focus rings, and responsive viewport utilities. */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-canvas-dark text-slate-100 font-sans antialiased min-h-screen selection:bg-sky-500 selection:text-white;
+  }
+
+  /* High-Contrast Accessible Focus Rings (WCAG 2.1 AAA Compliance) */
+  *:focus-visible {
+    outline: 2px solid #38bdf8 !important;
+    outline-offset: 2px !important;
+  }
+}
+
+/* Custom Component Utility Classes */
+@layer components {
+  /* Risk Indicator Badges */
+  .badge-risk-safe {
+    @apply bg-emerald-950/80 text-emerald-300 border border-emerald-600/50 px-3 py-1 rounded-full font-bold text-xs flex items-center gap-1.5 whitespace-nowrap;
+  }
+  .badge-risk-caution {
+    @apply bg-amber-950/80 text-amber-300 border border-amber-600/50 px-3 py-1 rounded-full font-bold text-xs flex items-center gap-1.5 whitespace-nowrap;
+  }
+  .badge-risk-dangerous {
+    @apply bg-red-950/80 text-red-300 border border-red-600/50 px-3 py-1 rounded-full font-bold text-xs flex items-center gap-1.5 whitespace-nowrap;
+  }
+
+  /* XAI Inline Scam Text Highlights */
+  .xai-highlight-urgency {
+    @apply bg-red-950/90 text-red-200 border-b-2 border-red-500 px-1 py-0.5 rounded font-mono font-bold;
+  }
+  .xai-highlight-typosquat {
+    @apply bg-amber-950/90 text-amber-200 border-b-2 border-amber-500 px-1 py-0.5 rounded font-mono font-bold underline decoration-wavy;
+  }
+
+  /* Card Elevate Effect */
+  .card-elevated {
+    @apply bg-canvas-card border border-canvas-border rounded-2xl p-4 sm:p-6 shadow-card-elevated transition-all duration-200 hover:border-slate-700;
+  }
+
+  /* 3D Perspective & Transform Engine Utility Classes */
+  .preserve-3d {
+    transform-style: preserve-3d;
+  }
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  .perspective-1200 {
+    perspective: 1200px;
+  }
+
+  /* 3D Dynamic Tilt & Glow Effects */
+  .card-3d-tilt {
+    transform-style: preserve-3d;
+    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease-in-out;
+  }
+  .card-3d-tilt:hover {
+    box-shadow: 0 20px 40px -15px rgba(56, 189, 248, 0.25), 0 0 20px rgba(14, 165, 233, 0.15);
+  }
+
+  /* 3D Cyber Radar & Grid Floor */
+  .cyber-grid-3d {
+    background-image: linear-gradient(to right, rgba(56, 189, 248, 0.1) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(56, 189, 248, 0.1) 1px, transparent 1px);
+    background-size: 30px 30px;
+    transform: rotateX(60deg) scale(2);
+    transform-origin: 50% 0%;
+  }
+
+  .glow-3d-cyan {
+    box-shadow: 0 0 25px rgba(56, 189, 248, 0.35), inset 0 0 15px rgba(56, 189, 248, 0.2);
+  }
+  .glow-3d-purple {
+    box-shadow: 0 0 30px rgba(168, 85, 247, 0.35), inset 0 0 20px rgba(168, 85, 247, 0.2);
+  }
+}
+
+/* 3D Levitation & Scanning Keyframes */
+@keyframes float3d {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes radarSweep3d {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes scanLaser3d {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+.animate-float-3d {
+  animation: float3d 5s ease-in-out infinite;
+}
+
+.animate-radar-3d {
+  animation: radarSweep3d 4s linear infinite;
+}
+
+.animate-scan-laser-3d {
+  animation: scanLaser3d 2.5s ease-in-out infinite;
+}
+
+/* Responsive Table Wrapper Utility */
+.table-responsive {
+  @apply w-full overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0;
+  scrollbar-width: thin;
+  scrollbar-color: #1e293b transparent;
+}
+
+/* ==========================================================================
+   1. Light Mode Theme (.light-theme)
+   ========================================================================== */
+body.light-theme,
+body.light-theme main,
+body.light-theme div.bg-canvas-dark,
+body.light-theme div.bg-slate-950 {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+body.light-theme header,
+body.light-theme aside,
+body.light-theme nav {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-theme aside a,
+body.light-theme nav a {
+  color: #334155 !important;
+}
+
+body.light-theme aside a:hover,
+body.light-theme nav a:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+body.light-theme div.bg-slate-900,
+body.light-theme div.bg-slate-900\/50,
+body.light-theme div.bg-slate-900\/80,
+body.light-theme div.bg-slate-900\/90,
+body.light-theme div.bg-canvas-card,
+body.light-theme div.card-elevated {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05) !important;
+}
+
+body.light-theme h1, 
+body.light-theme h2, 
+body.light-theme h3, 
+body.light-theme h4,
+body.light-theme h5,
+body.light-theme h6,
+body.light-theme .text-white,
+body.light-theme .text-slate-100,
+body.light-theme .text-slate-200 {
+  color: #0f172a !important;
+}
+
+body.light-theme p, 
+body.light-theme label,
+body.light-theme span.text-slate-300,
+body.light-theme span.text-slate-400,
+body.light-theme div.text-slate-300,
+body.light-theme div.text-slate-400 {
+  color: #475569 !important;
+}
+
+body.light-theme input,
+body.light-theme textarea,
+body.light-theme select {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* ==========================================================================
+   2. Senior Citizen Accessibility Scaling (.senior-mode)
+   ========================================================================== */
+body.senior-mode {
+  font-size: 1.2rem;
+  line-height: 1.7;
+}
+
+@media (min-width: 640px) {
+  body.senior-mode {
+    font-size: 1.25rem;
+  }
+}
+
+body.senior-mode *:focus-visible {
+  outline: 3px solid #0055ff !important;
+  outline-offset: 3px !important;
+}
+
+body.senior-mode h1, 
+body.senior-mode h2, 
+body.senior-mode h3, 
+body.senior-mode h4,
+body.senior-mode h5,
+body.senior-mode h6 {
+  font-weight: 900;
+  letter-spacing: -0.01em;
+}
+
+/* Senior Mode + DARK THEME */
+body.senior-mode.dark-theme {
+  background-color: #030712;
+  color: #f8fafc;
+}
+
+body.senior-mode.dark-theme header,
+body.senior-mode.dark-theme aside,
+body.senior-mode.dark-theme nav {
+  background-color: #090d16;
+  border-color: #1e293b;
+}
+
+body.senior-mode.dark-theme aside a,
+body.senior-mode.dark-theme nav a {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+body.senior-mode.dark-theme p,
+body.senior-mode.dark-theme label {
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+/* Senior Mode + LIGHT THEME (WCAG 2.1 AAA 12:1 Contrast Ratio) */
+body.senior-mode.light-theme {
+  background-color: #ffffff;
+  color: #000000;
+}
+
+body.senior-mode.light-theme header,
+body.senior-mode.light-theme aside,
+body.senior-mode.light-theme nav {
+  background-color: #ffffff;
+  border-color: #000000;
+  border-width: 2px;
+}
+
+body.senior-mode.light-theme div.bg-slate-950,
+body.senior-mode.light-theme div.bg-slate-900,
+body.senior-mode.light-theme div.bg-canvas-card {
+  background-color: #ffffff;
+  border: 2px solid #000000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+body.senior-mode.light-theme aside a,
+body.senior-mode.light-theme nav a {
+  color: #000000;
+  font-weight: 800;
+}
+
+body.senior-mode.light-theme h1,
+body.senior-mode.light-theme h2,
+body.senior-mode.light-theme h3,
+body.senior-mode.light-theme h4 {
+  color: #000000;
+}
+
+body.senior-mode.light-theme p,
+body.senior-mode.light-theme label {
+  color: #0f172a;
+}

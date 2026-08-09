@@ -1,0 +1,57 @@
+name: GuardianAI Dependency & Container Security Scan
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 4 * * 1'  # Every Monday at 4 AM UTC
+  workflow_dispatch:
+
+jobs:
+  python-security-scan:
+    name: Python Safety & Pip-Audit Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Run Pip-Audit Dependency Vulnerability Check
+        run: |
+          pip install pip-audit
+          pip-audit -r backend/requirements.txt --ignore-vuln CVE-2023-9999
+
+  node-security-scan:
+    name: Node.js NPM Audit Vulnerability Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run NPM Security Audit
+        working-directory: ./frontend
+        run: npm audit --audit-level=high
+
+  docker-trivy-scan:
+    name: Trivy Container Image Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Local Backend Test Image
+        run: docker build -t guardianai-backend:test -f backend/Dockerfile.backend backend
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'guardianai-backend:test'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL'

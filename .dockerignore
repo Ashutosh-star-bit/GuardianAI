@@ -1,0 +1,34 @@
+# GuardianAI Docker Ignore Specification
+# Purpose: Excludes unnecessary local artifacts, node_modules, virtual environments, and secrets from Docker build contexts.
+
+# Node.js & Frontend Artifacts
+**/node_modules
+**/dist
+**/build
+**/.output
+**/.vite
+
+# Python & Virtual Environments
+**/__pycache__
+**/*.py[cod]
+**/*$py.class
+**/venv
+**/env
+**/.pytest_cache
+**/.coverage
+**/htmlcov
+
+# Local Databases & Logs
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/logs/*.log
+
+# Local Environment Secrets & IDE
+**/.env
+**/.env.local
+**/.vscode
+**/.idea
+**/.git
+**/.gitignore
+**/*.md

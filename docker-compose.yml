@@ -1,0 +1,90 @@
+# GuardianAI Multi-Container Development Orchestration
+# Purpose: Orchestrates frontend, backend, PostgreSQL+pgvector database, and Redis cache containers for local development.
+
+version: '3.8'
+
+services:
+  # 1. FastAPI Backend Service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+      target: development
+    container_name: guardianai_backend_dev
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - DATABASE_URL=sqlite:///./guardianai.db
+      - SECRET_KEY=dev_secret_key_change_in_production_environment_32chars
+      - CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+    volumes:
+      - ./backend:/app/backend
+      - backend_uploads:/app/backend/uploads
+      - backend_logs:/app/backend/logs
+    networks:
+      - guardianai_network
+    restart: unless-stopped
+
+  # 2. React + Vite Frontend Service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      target: development
+    container_name: guardianai_frontend_dev
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000/api/v1
+    volumes:
+      - ./frontend:/app/frontend
+      - /app/frontend/node_modules
+    depends_on:
+      - backend
+    networks:
+      - guardianai_network
+    restart: unless-stopped
+
+  # 3. Future Database Service (PostgreSQL 16 + PgVector)
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: guardianai_db_dev
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=guardianai
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres_dev_password
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - guardianai_network
+    profiles:
+      - full-stack # Activated when --profile full-stack is specified
+
+  # 4. Future Cache & Rate Limiting Service (Redis 7)
+  redis:
+    image: redis:7-alpine
+    container_name: guardianai_redis_dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - guardianai_network
+    profiles:
+      - full-stack
+
+# Custom Networks
+networks:
+  guardianai_network:
+    driver: bridge
+
+# Named Persistent Volumes
+volumes:
+  db_data:
+  redis_data:
+  backend_uploads:
+  backend_logs:

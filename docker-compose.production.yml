@@ -1,0 +1,120 @@
+# ==============================================================================
+# GuardianAI Enterprise Production Docker Compose Orchestration
+# Services:
+#   1. nginx (Reverse Proxy & Edge Ingress)
+#   2. frontend (React SPA Nginx Container)
+#   3. backend (FastAPI Async API Gateway)
+#   4. postgres (PostgreSQL 16 Multi-AZ Ready Database)
+#   5. redis (Redis 7 In-Memory Cache & Rate Limiter)
+# ==============================================================================
+
+version: '3.8'
+
+services:
+  # 1. Edge Reverse Proxy
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: guardianai-nginx-edge
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks:
+      - guardianai-prod-net
+    restart: always
+
+  # 2. React Frontend SPA
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    container_name: guardianai-frontend-app
+    environment:
+      - VITE_API_BASE_URL=https://api.guardianai.io
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - guardianai-prod-net
+    restart: always
+
+  # 3. FastAPI Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.backend
+    container_name: guardianai-backend-api
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql://guardian_admin:ProdSecurePass2026!@postgres:5432/guardian_ai_prod
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=prod_jwt_super_secret_key_9988776655
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/liveness"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - guardianai-prod-net
+    restart: always
+
+  # 4. PostgreSQL 16 Relational Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: guardianai-postgres-db
+    environment:
+      POSTGRES_USER: guardian_admin
+      POSTGRES_PASSWORD: ProdSecurePass2026!
+      POSTGRES_DB: guardian_ai_prod
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guardian_admin -d guardian_ai_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - guardianai-prod-net
+    restart: always
+
+  # 5. Redis 7 Cache & Rate Limiting Engine
+  redis:
+    image: redis:7-alpine
+    container_name: guardianai-redis-cache
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - guardianai-prod-net
+    restart: always
+
+networks:
+  guardianai-prod-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  postgres_prod_data:
+    driver: local
+  redis_prod_data:
+    driver: local

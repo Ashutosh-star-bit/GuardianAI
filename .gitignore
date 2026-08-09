@@ -1,0 +1,59 @@
+# GuardianAI Git Ignore Specification
+# Purpose: Prevents build artifacts, local dependencies, environment secrets, and transient logs from entering source control.
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Node.js & Frontend Build Outputs
+node_modules/
+dist/
+build/
+.output/
+.vite/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Databases & SQLite
+*.db
+*.sqlite
+*.sqlite3
+backend/guardianai.db
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# IDE & Editor Settings
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Temporary Uploads & Log Directories
+uploads/*
+!uploads/.gitkeep
+logs/*
+!logs/.gitkeep
+
+# Coverage & Testing Output
+.coverage
+htmlcov/
+.pytest_cache/
+coverage/

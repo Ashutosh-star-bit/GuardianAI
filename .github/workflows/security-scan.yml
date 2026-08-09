@@ -1,0 +1,23 @@
+name: GuardianAI Security & Dependency Vulnerability Audit
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday midnight
+  workflow_dispatch:
+
+jobs:
+  trivy-scan:
+    name: Trivy Container Image Vulnerability Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy Vulnerability Scanner on Backend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}/backend:latest'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'

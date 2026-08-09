@@ -1,0 +1,19 @@
+# GuardianAI Repository Code Ownership Specification
+# Purpose: Defines automatic review assignments for pull requests modifying core sub-paths.
+
+# Global Code Owners (Engineering Leadership)
+*       @guardianai/core-team
+
+# Backend Python Application & Security
+/backend/               @guardianai/backend-leads
+/backend/app/core/      @guardianai/security-team
+/backend/app/db/        @guardianai/database-leads
+
+# Frontend React Application & Design System
+/frontend/              @guardianai/frontend-leads
+/frontend/src/context/  @guardianai/accessibility-leads
+
+# Architecture, Security & Documentation
+/docs/                  @guardianai/architecture-board
+/deploy/                @guardianai/devops-leads
+/.github/               @guardianai/devops-leads
