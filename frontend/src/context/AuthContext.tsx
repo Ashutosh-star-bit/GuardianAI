@@ -184,22 +184,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Create a new standard user session if new email
-    const newProfile: UserProfile = {
-      id: `usr_${Math.random().toString(36).substr(2, 9)}`,
-      email: cleanEmail,
-      fullName: cleanEmail.split('@')[0],
-      role: 'USER',
-      subscriptionTier: 'FREE',
-      scanCount: savedScanCount,
-      monthlyLimit: 15,
-      isVerified: true,
-      createdAt: new Date().toISOString(),
+    // If account does not exist in registered user database
+    return {
+      success: false,
+      message: 'No account found with this email address. Please click "Create Account" to sign up.',
     };
-
-    setCurrentUser(newProfile);
-    localStorage.setItem('guardianai_access_token', `gai_live_token_${newProfile.id}`);
-    return { success: true, message: 'Welcome to GuardianAI!' };
   };
 
   // Social OAuth Login Handler (Google, GitHub, Facebook)
