@@ -228,7 +228,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('guardianai_pending_email', cleanEmail);
     if (cleanPhone) localStorage.setItem('guardianai_pending_phone', cleanPhone);
 
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '') : 'http://localhost:8000/api/v1';
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL.trim().replace(/\/$/, '') : 'http://localhost:8000/api/v1';
+    console.log(`[GUARDIAN-AI DISPATCH] Calling Backend API: ${apiBaseUrl}/auth/send-verification-code`);
 
     // 1. Dispatch Email 6-Digit Code via Direct Gmail SMTP
     try {
