@@ -126,6 +126,20 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
+# Configure CORS Middleware (Must be added first to handle OPTIONS pre-flight requests)
+origins = ["*"]
+if settings.CORS_ORIGINS:
+    origins = settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [settings.CORS_ORIGINS]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Request-ID", "X-Process-Time", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-Correlation-ID", "X-API-Version", "X-API-Deprecation-Date", "X-API-Sunset-Date"]
+)
+
 # Register Custom Middlewares Stack
 app.add_middleware(APIVersioningMiddleware)
 app.add_middleware(APIGatewayMiddleware)
@@ -138,19 +152,7 @@ app.add_middleware(RateLimitMiddleware, requests_per_minute=120)
 if settings.ENVIRONMENT in ["production", "staging"]:
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["*", "localhost", "127.0.0.1", "*.guardianai.io", "*.onrender.com", "*.vercel.app"]
-    )
-
-# Configure CORS Middleware
-if settings.CORS_ORIGINS:
-    origins = settings.CORS_ORIGINS if isinstance(settings.CORS_ORIGINS, list) else [settings.CORS_ORIGINS]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["X-Request-ID", "X-Process-Time", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-Correlation-ID", "X-API-Version", "X-API-Deprecation-Date", "X-API-Sunset-Date"]
+        allowed_hosts=["*"]
     )
 
 # Register Global RFC 7807 Exception Handlers
