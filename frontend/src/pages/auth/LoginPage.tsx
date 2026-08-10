@@ -53,7 +53,7 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleSocialClick = async (provider: 'google' | 'github' | 'facebook') => {
+  const handleSocialClick = async (provider: 'google' | 'github') => {
     setIsLoading(true);
     try {
       const res = await socialLogin(provider);

@@ -35,17 +35,16 @@ class SendSmsOtpRequest(BaseModel):
     otp_code: str
 
 @router.post("/auth/send-verification-code", summary="Dispatch 6-Digit Email Verification Code via SMTP")
-def send_verification_code_route(payload: SendVerificationCodeRequest, background_tasks: BackgroundTasks):
-    """Dispatches the exact 6-digit verification code asynchronously in background task."""
-    background_tasks.add_task(
-        send_verification_email,
+def send_verification_code_route(payload: SendVerificationCodeRequest):
+    """Dispatches the exact 6-digit verification code directly via Gmail SMTP."""
+    success = send_verification_email(
         to_email=payload.email,
         otp_code=payload.otp_code,
         user_name=payload.name
     )
     return {
-        "success": True,
-        "message": f"Verification code dispatched asynchronously to {payload.email}",
+        "success": success,
+        "message": f"Verification code dispatched to {payload.email}",
         "email": payload.email,
         "otp_sent": payload.otp_code
     }

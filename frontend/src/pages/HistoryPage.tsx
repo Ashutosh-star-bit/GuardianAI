@@ -31,7 +31,7 @@ export const HistoryPage: React.FC = () => {
   const filteredHistory = useMemo(() => {
     return scanHistory.filter((item) => {
       const matchesSearch =
-        item.payloadSnippet.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.payloadSnippet || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.payloadType.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.plainRationale.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -54,7 +54,7 @@ export const HistoryPage: React.FC = () => {
       s.payloadType,
       s.threatScore,
       s.riskBand,
-      `"${s.payloadSnippet.replace(/"/g, '""')}"`,
+      `"${(s.payloadSnippet || '').replace(/"/g, '""')}"`,
       `"${s.plainRationale.replace(/"/g, '""')}"`,
     ]);
 

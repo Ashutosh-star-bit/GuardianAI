@@ -1,16 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type UserRole = 'ADMIN' | 'USER';
 export type SubscriptionTier = 'FREE' | 'PRO' | 'BUSINESS' | 'ENTERPRISE';
 
 export interface UserProfile {
   id: string;
   email: string;
   fullName: string;
-  role: UserRole;
+  role: 'ADMIN' | 'USER';
   subscriptionTier: SubscriptionTier;
   scanCount: number;
-  monthlyLimit: number; // 15 for FREE, -1 for unlimited
+  monthlyLimit: number;
   isVerified: boolean;
   createdAt: string;
 }
@@ -19,7 +18,7 @@ export interface ScanRecordItem {
   id: string;
   timestamp: string;
   payloadType: string;
-  payloadSnippet: string;
+  payloadSnippet?: string;
   threatScore: number;
   riskBand: 'safe' | 'caution' | 'dangerous';
   plainRationale: string;
@@ -34,14 +33,17 @@ interface AuthContextType {
   effectiveTier: SubscriptionTier;
   activePerspective: SubscriptionTier | 'DEFAULT';
   verificationOtp: string | null;
+  emailOtp: string | null;
+  mobileOtp: string | null;
   pendingEmail: string | null;
+  pendingPhone: string | null;
   scanHistory: ScanRecordItem[];
   login: (email: string, pass: string) => Promise<{ success: boolean; message: string }>;
-  socialLogin: (provider: 'google' | 'github' | 'facebook') => Promise<{ success: boolean; message: string }>;
+  socialLogin: (provider: 'google' | 'github') => Promise<{ success: boolean; message: string }>;
   logout: () => void;
-  registerUser: (email: string, pass: string, name: string) => Promise<{ success: boolean; otp: string }>;
-  resendVerificationCode: () => Promise<{ success: boolean; otp: string }>;
-  verifyOtpCode: (enteredOtp: string) => boolean;
+  registerUser: (email: string, pass: string, name: string, phone?: string) => Promise<{ success: boolean; emailOtp: string; mobileOtp: string }>;
+  resendVerificationCode: () => Promise<{ success: boolean; emailOtp: string; mobileOtp: string }>;
+  verifyOtpCode: (enteredEmailOtp: string, enteredMobileOtp?: string) => boolean;
   upgradeSubscription: (newTier: SubscriptionTier) => void;
   switchAdminPerspective: (tier: SubscriptionTier | 'DEFAULT') => void;
   incrementScanCount: () => boolean;
@@ -61,17 +63,6 @@ const MASTER_ADMIN_ACCOUNTS: Record<string, UserProfile> = {
     isVerified: true,
     createdAt: '2026-01-01T00:00:00Z',
   },
-  'superadmin@guardianai.io': {
-    id: 'usr_admin_master_2',
-    email: 'superadmin@guardianai.io',
-    fullName: 'Super Admin Lead Architect',
-    role: 'ADMIN',
-    subscriptionTier: 'ENTERPRISE',
-    scanCount: 0,
-    monthlyLimit: -1,
-    isVerified: true,
-    createdAt: '2026-01-01T00:00:00Z',
-  },
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -82,7 +73,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Normalize Free tier monthlyLimit to 15
         if (parsed.subscriptionTier === 'FREE') {
           parsed.monthlyLimit = 15;
         }
@@ -98,12 +88,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return (localStorage.getItem('guardianai_admin_perspective') as SubscriptionTier) || 'DEFAULT';
   });
 
-  const [verificationOtp, setVerificationOtp] = useState<string | null>(() => {
-    return localStorage.getItem('guardianai_pending_otp');
+  const [emailOtp, setEmailOtp] = useState<string | null>(() => {
+    return localStorage.getItem('guardianai_pending_email_otp');
+  });
+
+  const [mobileOtp, setMobileOtp] = useState<string | null>(() => {
+    return localStorage.getItem('guardianai_pending_mobile_otp');
   });
 
   const [pendingEmail, setPendingEmail] = useState<string | null>(() => {
     return localStorage.getItem('guardianai_pending_email');
+  });
+
+  const [pendingPhone, setPendingPhone] = useState<string | null>(() => {
+    return localStorage.getItem('guardianai_pending_phone');
   });
 
   const [scanHistory, setScanHistory] = useState<ScanRecordItem[]>(() => {
@@ -121,7 +119,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAuthenticated = Boolean(currentUser && localStorage.getItem('guardianai_access_token'));
   const isAdmin = currentUser?.role === 'ADMIN';
 
-  // Compute effective tier taking into account Admin Perspective overrides
   const effectiveTier: SubscriptionTier = React.useMemo(() => {
     if (!currentUser) return 'FREE';
     if (isAdmin && activePerspective !== 'DEFAULT') {
@@ -130,7 +127,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return currentUser.subscriptionTier;
   }, [currentUser, isAdmin, activePerspective]);
 
-  // Persist session changes
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('guardianai_user_session', JSON.stringify(currentUser));
@@ -139,16 +135,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser]);
 
-  // Persist scan history
   useEffect(() => {
     localStorage.setItem('guardianai_real_scan_history', JSON.stringify(scanHistory));
   }, [scanHistory]);
 
-  // Login handler
   const login = async (email: string, pass: string) => {
     const cleanEmail = email.trim().toLowerCase();
 
-    // Check Master Admin Accounts
     if (MASTER_ADMIN_ACCOUNTS[cleanEmail]) {
       if (pass === 'Admin@12345' || pass.length >= 6) {
         const adminUser = MASTER_ADMIN_ACCOUNTS[cleanEmail];
@@ -160,7 +153,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Check custom registered user from localStorage
     const storedAuthStr = localStorage.getItem(`guardianai_db_user_${cleanEmail}`);
     const savedScanCountStr = localStorage.getItem(`guardianai_scancount_${cleanEmail}`);
     const savedScanCount = savedScanCountStr ? parseInt(savedScanCountStr, 10) : 0;
@@ -184,28 +176,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // If account does not exist in registered user database
     return {
       success: false,
       message: 'No account found with this email address. Please click "Create Account" to sign up.',
     };
   };
 
-  // Social OAuth Login Handler (Google, GitHub, Facebook)
-  const socialLogin = async (provider: 'google' | 'github' | 'facebook') => {
-    let email = '';
-    let name = '';
-
-    if (provider === 'google') {
-      email = 'user.google@gmail.com';
-      name = 'Google Authorized User';
-    } else if (provider === 'github') {
-      email = 'developer@github.com';
-      name = 'GitHub Developer User';
-    } else {
-      email = 'user.social@facebook.com';
-      name = 'Facebook Authenticated User';
-    }
+  const socialLogin = async (provider: 'google' | 'github') => {
+    let email = provider === 'google' ? 'user.google@gmail.com' : 'developer@github.com';
+    let name = provider === 'google' ? 'Google Authorized User' : 'GitHub Developer User';
 
     const savedScanCountStr = localStorage.getItem(`guardianai_scancount_${email}`);
     const savedScanCount = savedScanCountStr ? parseInt(savedScanCountStr, 10) : 0;
@@ -227,33 +206,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true, message: `Successfully authenticated via ${provider.toUpperCase()} Single Sign-On!` };
   };
 
-  // Register Handler: Generates 6-digit numeric verification code
-  const registerUser = async (email: string, pass: string, name: string) => {
+  const registerUser = async (email: string, pass: string, name: string, phone?: string) => {
     const cleanEmail = email.trim().toLowerCase();
+    const cleanPhone = phone ? phone.trim() : '';
 
-    // Prevent duplicate registration for existing email addresses
     const existingDbUser = localStorage.getItem(`guardianai_db_user_${cleanEmail}`);
     if (MASTER_ADMIN_ACCOUNTS[cleanEmail] || existingDbUser) {
       throw new Error('An account already exists with this email address. Please sign in instead.');
     }
 
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const generatedEmailCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const generatedMobileCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    setVerificationOtp(generatedOtp);
+    setEmailOtp(generatedEmailCode);
+    setMobileOtp(generatedMobileCode);
     setPendingEmail(cleanEmail);
-    localStorage.setItem('guardianai_pending_otp', generatedOtp);
-    localStorage.setItem('guardianai_pending_email', cleanEmail);
+    setPendingPhone(cleanPhone);
 
-    // Trigger backend SMTP email dispatch service with exact generated 6-digit OTP code
+    localStorage.setItem('guardianai_pending_email_otp', generatedEmailCode);
+    localStorage.setItem('guardianai_pending_mobile_otp', generatedMobileCode);
+    localStorage.setItem('guardianai_pending_email', cleanEmail);
+    if (cleanPhone) localStorage.setItem('guardianai_pending_phone', cleanPhone);
+
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '') : 'http://localhost:8000/api/v1';
+
+    // 1. Dispatch Email 6-Digit Code via Direct Gmail SMTP
     try {
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '') : 'http://localhost:8000/api/v1';
       await fetch(`${apiBaseUrl}/auth/send-verification-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, name: name || cleanEmail.split('@')[0], otp_code: generatedOtp }),
+        body: JSON.stringify({ email: cleanEmail, name: name || cleanEmail.split('@')[0], otp_code: generatedEmailCode }),
       });
     } catch (err) {
-      console.error('Backend email dispatch error:', err);
+      console.error('Backend Gmail dispatch error:', err);
+    }
+
+    // 2. Dispatch Mobile SMS / WhatsApp 6-Digit OTP Code
+    if (cleanPhone) {
+      try {
+        await fetch(`${apiBaseUrl}/auth/send-sms-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone_number: cleanPhone, name: name || cleanEmail.split('@')[0], otp_code: generatedMobileCode }),
+        });
+      } catch (err) {
+        console.error('Backend SMS/WhatsApp dispatch error:', err);
+      }
     }
 
     const draftProfile: UserProfile = {
@@ -270,35 +268,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     localStorage.setItem(`guardianai_draft_user_${cleanEmail}`, JSON.stringify({ password: pass, profile: draftProfile }));
 
-    return { success: true, otp: generatedOtp };
+    return { success: true, emailOtp: generatedEmailCode, mobileOtp: generatedMobileCode };
   };
 
-  // Resend OTP handler: Dispatches a brand new 6-digit code
-  const resendVerificationCode = async (): Promise<{ success: boolean; otp: string }> => {
-    if (!pendingEmail) return { success: false, otp: '' };
-    const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    setVerificationOtp(newOtp);
-    localStorage.setItem('guardianai_pending_otp', newOtp);
+  const resendVerificationCode = async (): Promise<{ success: boolean; emailOtp: string; mobileOtp: string }> => {
+    if (!pendingEmail) return { success: false, emailOtp: '', mobileOtp: '' };
+    
+    const newEmailCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const newMobileCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    setEmailOtp(newEmailCode);
+    setMobileOtp(newMobileCode);
+    localStorage.setItem('guardianai_pending_email_otp', newEmailCode);
+    localStorage.setItem('guardianai_pending_mobile_otp', newMobileCode);
+
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '') : 'http://localhost:8000/api/v1';
 
     try {
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '') : 'http://localhost:8000/api/v1';
       await fetch(`${apiBaseUrl}/auth/send-verification-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: pendingEmail, name: pendingEmail.split('@')[0], otp_code: newOtp }),
+        body: JSON.stringify({ email: pendingEmail, name: pendingEmail.split('@')[0], otp_code: newEmailCode }),
       });
     } catch (err) {
       console.error('Resend email error:', err);
     }
 
-    return { success: true, otp: newOtp };
+    if (pendingPhone) {
+      try {
+        await fetch(`${apiBaseUrl}/auth/send-sms-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone_number: pendingPhone, name: pendingEmail.split('@')[0], otp_code: newMobileCode }),
+        });
+      } catch (err) {
+        console.error('Resend SMS error:', err);
+      }
+    }
+
+    return { success: true, emailOtp: newEmailCode, mobileOtp: newMobileCode };
   };
 
-  // Verify OTP handler: Enforces strict exact 6-digit match against generated code
-  const verifyOtpCode = (enteredOtp: string): boolean => {
-    const clean = enteredOtp.trim();
-    if (!verificationOtp || clean !== verificationOtp) {
-      return false; // Reject invalid / wrong verification code!
+  const verifyOtpCode = (enteredEmailCode: string, enteredMobileCode?: string): boolean => {
+    const cleanEmailCode = enteredEmailCode.trim();
+    if (!emailOtp || cleanEmailCode !== emailOtp) {
+      return false; // Reject invalid email code!
+    }
+
+    if (pendingPhone && mobileOtp) {
+      const cleanMobileCode = (enteredMobileCode || '').trim();
+      if (cleanMobileCode !== mobileOtp) {
+        return false; // Reject invalid mobile/WhatsApp code!
+      }
     }
 
     if (pendingEmail) {
@@ -316,14 +337,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    setVerificationOtp(null);
+    setEmailOtp(null);
+    setMobileOtp(null);
     setPendingEmail(null);
-    localStorage.removeItem('guardianai_pending_otp');
+    setPendingPhone(null);
+    localStorage.removeItem('guardianai_pending_email_otp');
+    localStorage.removeItem('guardianai_pending_mobile_otp');
     localStorage.removeItem('guardianai_pending_email');
+    localStorage.removeItem('guardianai_pending_phone');
     return true;
   };
 
-  // Upgrade Subscription Handler
+  const logout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('guardianai_access_token');
+    localStorage.removeItem('guardianai_user_session');
+  };
+
   const upgradeSubscription = (newTier: SubscriptionTier) => {
     if (!currentUser) return;
     const limit = newTier === 'FREE' ? 15 : -1;
@@ -333,80 +363,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       monthlyLimit: limit,
     };
     setCurrentUser(updated);
-
-    if (currentUser.email) {
-      const storedStr = localStorage.getItem(`guardianai_db_user_${currentUser.email}`);
-      if (storedStr) {
-        try {
-          const parsed = JSON.parse(storedStr);
-          parsed.profile = updated;
-          localStorage.setItem(`guardianai_db_user_${currentUser.email}`, JSON.stringify(parsed));
-        } catch {
-          // Fallback
-        }
-      }
-    }
   };
 
-  // Admin Perspective Switcher
   const switchAdminPerspective = (tier: SubscriptionTier | 'DEFAULT') => {
     setActivePerspective(tier);
     localStorage.setItem('guardianai_admin_perspective', tier);
   };
 
-  // Increment scan count and enforce 15 Scans Free Tier limit
   const incrementScanCount = (): boolean => {
     if (!currentUser) return false;
-    
-    // Unlimited tiers
-    if (effectiveTier === 'ENTERPRISE' || effectiveTier === 'PRO' || effectiveTier === 'BUSINESS') {
-      const newCount = currentUser.scanCount + 1;
-      const updated = { ...currentUser, scanCount: newCount };
-      setCurrentUser(updated);
-      if (currentUser.email) {
-        localStorage.setItem(`guardianai_scancount_${currentUser.email}`, newCount.toString());
-      }
-      return true;
+    if (currentUser.monthlyLimit !== -1 && currentUser.scanCount >= currentUser.monthlyLimit) {
+      return false;
     }
-
-    // Free tier check (15 scans max per month)
-    if (currentUser.scanCount >= 15) {
-      return false; // Limit exceeded!
-    }
-
-    const newCount = currentUser.scanCount + 1;
-    const updated = { ...currentUser, scanCount: newCount };
+    const updated: UserProfile = {
+      ...currentUser,
+      scanCount: currentUser.scanCount + 1,
+    };
     setCurrentUser(updated);
-    if (currentUser.email) {
-      localStorage.setItem(`guardianai_scancount_${currentUser.email}`, newCount.toString());
-    }
+    localStorage.setItem(`guardianai_scancount_${currentUser.email}`, String(updated.scanCount));
     return true;
   };
 
-  // Add scan record into real history array
   const addScanRecord = (record: Omit<ScanRecordItem, 'id' | 'timestamp'>): ScanRecordItem => {
     const newItem: ScanRecordItem = {
       ...record,
-      id: `scn_${Math.random().toString(36).substr(2, 10)}`,
+      id: `scn_${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date().toISOString(),
     };
-
     setScanHistory((prev) => [newItem, ...prev]);
     return newItem;
   };
 
   const clearScanHistory = () => {
     setScanHistory([]);
-    localStorage.removeItem('guardianai_real_scan_history');
-  };
-
-  // Logout Handler
-  const logout = () => {
-    setCurrentUser(null);
-    setActivePerspective('DEFAULT');
-    localStorage.removeItem('guardianai_access_token');
-    localStorage.removeItem('guardianai_user_session');
-    localStorage.removeItem('guardianai_admin_perspective');
   };
 
   return (
@@ -417,8 +406,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAdmin,
         effectiveTier,
         activePerspective,
-        verificationOtp,
+        verificationOtp: emailOtp,
+        emailOtp,
+        mobileOtp,
         pendingEmail,
+        pendingPhone,
         scanHistory,
         login,
         socialLogin,
@@ -438,7 +430,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-export const useAuth = (): AuthContextType => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');

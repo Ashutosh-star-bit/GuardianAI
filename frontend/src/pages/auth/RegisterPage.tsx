@@ -14,8 +14,8 @@ import { PasswordStrengthMeter } from '../../components/auth/PasswordStrengthMet
 const registerSchema = z
   .object({
     fullName: z.string().min(2, 'Full name must be at least 2 characters'),
-    email: z.string().email('Please enter a valid email address'),
-    phone: z.string().optional(),
+    email: z.string().email('Please enter a valid Gmail / Email address'),
+    phone: z.string().min(10, 'Please enter a valid Mobile / WhatsApp phone number'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     confirmPassword: z.string(),
   })
@@ -27,7 +27,6 @@ const registerSchema = z
 type RegisterFormData = z.infer<typeof registerSchema>;
 
 export const RegisterPage: React.FC = () => {
-  const [authMethod, setAuthMethod] = useState<'email' | 'mobile'>('email');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { showToast } = useToast();
@@ -48,26 +47,14 @@ export const RegisterPage: React.FC = () => {
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     try {
-      if (authMethod === 'email') {
-        await registerUser(data.email, data.password, data.fullName);
-        setIsLoading(false);
-        showToast(
-          'success',
-          'Verification Code Sent!',
-          `A 6-digit email verification code has been dispatched to ${data.email}. Please check your inbox.`
-        );
-        navigate('/verify-email');
-      } else {
-        const phone = data.phone || '+91 98765 43210';
-        await registerUser(data.email, data.password, data.fullName);
-        setIsLoading(false);
-        showToast(
-          'success',
-          'SMS / WhatsApp OTP Sent!',
-          `A 6-digit verification code has been sent via Mobile SMS & WhatsApp to ${phone}.`
-        );
-        navigate('/verify-email');
-      }
+      await registerUser(data.email, data.password, data.fullName, data.phone);
+      setIsLoading(false);
+      showToast(
+        'success',
+        'Verification Codes Dispatched!',
+        `Two distinct 6-digit codes sent: one to your Gmail (${data.email}) and one to your Mobile / WhatsApp (${data.phone}).`
+      );
+      navigate('/verify-email');
     } catch (err: any) {
       setIsLoading(false);
       showToast('error', 'Registration Failed', err?.message || 'Could not create account. Please try again.');
@@ -97,11 +84,11 @@ export const RegisterPage: React.FC = () => {
             </div>
           </Link>
           <h1 className="text-3xl font-black text-white tracking-tight">Create Account</h1>
-          <p className="text-sm text-slate-400">Join GuardianAI and protect your digital identity.</p>
+          <p className="text-sm text-slate-400">Enter your details to generate dual Gmail & WhatsApp verification codes.</p>
         </div>
 
         <Card className="space-y-6 border-slate-800 bg-slate-900/90">
-          {/* Social 1-Click SSO Buttons (Google & GitHub) */}
+          {/* 1-Click SSO Buttons (Google & GitHub) */}
           <div className="grid grid-cols-2 gap-2.5">
             <button
               type="button"
@@ -129,31 +116,10 @@ export const RegisterPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Verification Method Mode Tabs */}
-          <div className="space-y-2 pt-2">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Verification Channel:</span>
-            <div className="grid grid-cols-2 gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
-              <button
-                type="button"
-                onClick={() => setAuthMethod('email')}
-                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  authMethod === 'email' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Mail className="w-3.5 h-3.5" />
-                <span>6-Digit Email Code</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setAuthMethod('mobile')}
-                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  authMethod === 'mobile' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>SMS / WhatsApp OTP</span>
-              </button>
-            </div>
+          <div className="flex items-center gap-3 my-2">
+            <div className="h-[1px] bg-slate-800 flex-1" />
+            <span className="text-[10px] text-slate-500 font-bold uppercase">or dual channel registration</span>
+            <div className="h-[1px] bg-slate-800 flex-1" />
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -172,33 +138,32 @@ export const RegisterPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">Email Address</label>
+              <label className="text-xs font-bold text-slate-300 block mb-1">Gmail / Email Address</label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
                   type="email"
                   {...register('email')}
-                  placeholder="you@example.com"
+                  placeholder="you@gmail.com"
                   className="w-full bg-slate-950 border border-slate-800 focus:border-sky-400 text-white text-sm rounded-xl pl-9 pr-3 py-2.5 outline-none transition-all"
                 />
               </div>
               {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email.message}</p>}
             </div>
 
-            {authMethod === 'mobile' && (
-              <div>
-                <label className="text-xs font-bold text-slate-300 block mb-1">Mobile Phone Number (SMS / WhatsApp OTP)</label>
-                <div className="relative">
-                  <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                  <input
-                    type="tel"
-                    {...register('phone')}
-                    placeholder="+91 98765 43210"
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-400 text-white text-sm rounded-xl pl-9 pr-3 py-2.5 outline-none transition-all"
-                  />
-                </div>
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1">Mobile Phone Number (SMS / WhatsApp)</label>
+              <div className="relative">
+                <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <input
+                  type="tel"
+                  {...register('phone')}
+                  placeholder="+91 98765 43210"
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-400 text-white text-sm rounded-xl pl-9 pr-3 py-2.5 outline-none transition-all"
+                />
               </div>
-            )}
+              {errors.phone && <p className="text-xs text-red-400 mt-1">{errors.phone.message}</p>}
+            </div>
 
             <div>
               <label className="text-xs font-bold text-slate-300 block mb-1">Password</label>
@@ -239,7 +204,7 @@ export const RegisterPage: React.FC = () => {
             </div>
 
             <Button type="submit" isLoading={isLoading} className="w-full py-3 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black rounded-xl text-sm mt-2">
-              {authMethod === 'email' ? 'Send 6-Digit Email Code' : 'Send Mobile SMS / WhatsApp OTP'}
+              Send Dual Verification Codes
             </Button>
           </form>
 

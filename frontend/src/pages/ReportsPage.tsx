@@ -50,7 +50,7 @@ ${report.plainRationale}
 
 RECOMMENDED ACTIONABLE STEPS:
 ------------------------------------------------------------------------
-${report.remediation.map((r, i) => `${i + 1}. ${r}`).join('\n')}
+${report.remediation.map((r: string, i: number) => `${i + 1}. ${r}`).join('\n')}
 
 ========================================================================
 Exported by GuardianAI Zero-Knowledge Protection System.
