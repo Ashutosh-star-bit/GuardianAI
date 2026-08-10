@@ -15,7 +15,7 @@ const registerSchema = z
   .object({
     fullName: z.string().min(2, 'Full name must be at least 2 characters'),
     email: z.string().email('Please enter a valid Gmail / Email address'),
-    phone: z.string().min(10, 'Please enter a valid Mobile / WhatsApp phone number'),
+    phone: z.string().min(10, 'Please enter a valid phone number with country code (e.g. +91...)'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     confirmPassword: z.string(),
   })
@@ -46,19 +46,28 @@ export const RegisterPage: React.FC = () => {
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
-    showToast('info', 'Connecting Security Server...', 'Dispatching verification codes via Gmail SMTP & SMS. Please wait a moment...');
     try {
       await registerUser(data.email, data.password, data.fullName, data.phone);
       setIsLoading(false);
       showToast(
         'success',
-        'Verification Codes Dispatched!',
-        `Two distinct 6-digit codes sent: one to your Gmail (${data.email}) and one to your Mobile / WhatsApp (${data.phone}).`
+        'Verification Email Sent!',
+        `A verification link has been sent to ${data.email}. Please check your inbox to verify your account.`
       );
       navigate('/verify-email');
     } catch (err: any) {
       setIsLoading(false);
-      showToast('error', 'Registration Failed', err?.message || 'Could not create account. Please try again.');
+      // Firebase-specific error messages
+      const code = err?.code;
+      if (code === 'auth/email-already-in-use') {
+        showToast('error', 'Account Exists', 'An account with this email already exists. Please sign in instead.');
+      } else if (code === 'auth/weak-password') {
+        showToast('error', 'Weak Password', 'Password must be at least 6 characters long.');
+      } else if (code === 'auth/invalid-email') {
+        showToast('error', 'Invalid Email', 'Please enter a valid email address.');
+      } else {
+        showToast('error', 'Registration Failed', err?.message || 'Could not create account. Please try again.');
+      }
     }
   };
 
@@ -89,7 +98,7 @@ export const RegisterPage: React.FC = () => {
             </div>
           </Link>
           <h1 className="text-3xl font-black text-white tracking-tight">Create Account</h1>
-          <p className="text-sm text-slate-400">Enter your details to generate dual Gmail & WhatsApp verification codes.</p>
+          <p className="text-sm text-slate-400">Register with real email & phone verification powered by Firebase.</p>
         </div>
 
         <Card className="space-y-6 border-slate-800 bg-slate-900/90">
@@ -111,7 +120,7 @@ export const RegisterPage: React.FC = () => {
 
           <div className="flex items-center gap-3 my-2">
             <div className="h-[1px] bg-slate-800 flex-1" />
-            <span className="text-[10px] text-slate-500 font-bold uppercase">or dual channel registration</span>
+            <span className="text-[10px] text-slate-500 font-bold uppercase">or register with email & phone</span>
             <div className="h-[1px] bg-slate-800 flex-1" />
           </div>
 
@@ -145,7 +154,7 @@ export const RegisterPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">Mobile Phone Number (SMS / WhatsApp)</label>
+              <label className="text-xs font-bold text-slate-300 block mb-1">Mobile Phone Number (with country code)</label>
               <div className="relative">
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
@@ -197,7 +206,7 @@ export const RegisterPage: React.FC = () => {
             </div>
 
             <Button type="submit" isLoading={isLoading} className="w-full py-3 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black rounded-xl text-sm mt-2">
-              Send Dual Verification Codes
+              Create Account & Send Verification
             </Button>
           </form>
 

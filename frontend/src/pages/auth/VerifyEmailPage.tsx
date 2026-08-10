@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShieldCheck, Mail, Phone, RotateCw, AlertCircle, CheckCircle2, Zap, KeyRound } from 'lucide-react';
+import { ShieldCheck, Mail, Phone, RotateCw, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { PageTransition } from '../../components/common/PageTransition';
 import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
@@ -8,83 +8,109 @@ import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 
 export const VerifyEmailPage: React.FC = () => {
-  const { pendingEmail, pendingPhone, emailOtp, mobileOtp, verifyOtpCode, resendVerificationCode } = useAuth();
-  const [emailCode, setEmailCode] = useState(['', '', '', '', '', '']);
-  const [mobileCode, setMobileCode] = useState(['', '', '', '', '', '']);
-  const [isVerifying, setIsVerifying] = useState(false);
+  const {
+    pendingEmail,
+    pendingPhone,
+    emailVerified,
+    phoneVerified,
+    sendPhoneOtp,
+    verifyPhoneOtp,
+    resendEmailVerification,
+    checkEmailVerified,
+    finalizeRegistration,
+  } = useAuth();
+
+  const [smsCode, setSmsCode] = useState(['', '', '', '', '', '']);
+  const [isVerifyingPhone, setIsVerifyingPhone] = useState(false);
+  const [isSmsSent, setIsSmsSent] = useState(false);
+  const [isSendingSms, setIsSendingSms] = useState(false);
+  const [isResendingEmail, setIsResendingEmail] = useState(false);
+  const [emailCheckCount, setEmailCheckCount] = useState(0);
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const handleEmailCodeChange = (index: number, value: string) => {
-    if (value.length > 1) return;
-    const newCode = [...emailCode];
-    newCode[index] = value;
-    setEmailCode(newCode);
+  // Poll for email verification every 3 seconds
+  useEffect(() => {
+    if (emailVerified) return;
 
-    if (value && index < 5) {
-      const nextInput = document.getElementById(`email-code-input-${index + 1}`);
-      nextInput?.focus();
-    }
-  };
-
-  const handleMobileCodeChange = (index: number, value: string) => {
-    if (value.length > 1) return;
-    const newCode = [...mobileCode];
-    newCode[index] = value;
-    setMobileCode(newCode);
-
-    if (value && index < 5) {
-      const nextInput = document.getElementById(`mobile-code-input-${index + 1}`);
-      nextInput?.focus();
-    }
-  };
-
-  const handleAutoFill = () => {
-    if (emailOtp) {
-      setEmailCode(emailOtp.split(''));
-    }
-    if (mobileOtp) {
-      setMobileCode(mobileOtp.split(''));
-    }
-    showToast('success', 'Codes Auto-Filled!', 'Dispatched 6-digit verification codes have been filled into the input boxes.');
-  };
-
-  const handleVerify = async () => {
-    const fullEmailCode = emailCode.join('');
-    const fullMobileCode = mobileCode.join('');
-
-    if (fullEmailCode.length < 6) {
-      showToast('error', 'Incomplete Email Code', 'Please enter all 6 digits of your Gmail verification code.');
-      return;
-    }
-
-    if (pendingPhone && fullMobileCode.length < 6) {
-      showToast('error', 'Incomplete Mobile Code', 'Please enter all 6 digits of your Mobile / WhatsApp OTP.');
-      return;
-    }
-
-    setIsVerifying(true);
-    setTimeout(() => {
-      const isValid = verifyOtpCode(fullEmailCode, fullMobileCode);
-      setIsVerifying(false);
-
-      if (isValid) {
-        showToast('success', 'Dual Verification Complete!', 'Both Gmail & WhatsApp codes verified. Welcome to GuardianAI!');
-        navigate('/dashboard');
-      } else {
-        showToast('error', 'Verification Failed', 'Invalid verification code(s). Please check your Gmail inbox and WhatsApp/SMS messages.');
+    pollingRef.current = setInterval(async () => {
+      const verified = await checkEmailVerified();
+      setEmailCheckCount((c) => c + 1);
+      if (verified) {
+        showToast('success', 'Email Verified!', 'Your email address has been verified successfully.');
+        if (pollingRef.current) clearInterval(pollingRef.current);
       }
-    }, 800);
+    }, 3000);
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [emailVerified, checkEmailVerified, showToast]);
+
+  // Auto-finalize when both are verified
+  useEffect(() => {
+    if (emailVerified && phoneVerified) {
+      showToast('success', 'Dual Verification Complete!', 'Both email and phone verified. Welcome to GuardianAI!');
+      finalizeRegistration();
+      navigate('/dashboard');
+    }
+  }, [emailVerified, phoneVerified, finalizeRegistration, navigate, showToast]);
+
+  const handleSmsCodeChange = (index: number, value: string) => {
+    if (value.length > 1) return;
+    const newCode = [...smsCode];
+    newCode[index] = value;
+    setSmsCode(newCode);
+
+    if (value && index < 5) {
+      const nextInput = document.getElementById(`sms-code-input-${index + 1}`);
+      nextInput?.focus();
+    }
   };
 
-  const handleResend = async () => {
-    const res = await resendVerificationCode();
-    if (res.success) {
-      showToast('info', 'Codes Resent!', `New 6-digit codes dispatched to ${pendingEmail || 'your email'} and ${pendingPhone || 'your mobile'}.`);
-      setEmailCode(['', '', '', '', '', '']);
-      setMobileCode(['', '', '', '', '', '']);
+  const handleSendSms = async () => {
+    if (!pendingPhone) return;
+    setIsSendingSms(true);
+
+    const result = await sendPhoneOtp(pendingPhone, 'recaptcha-container');
+    setIsSendingSms(false);
+
+    if (result.success) {
+      setIsSmsSent(true);
+      showToast('success', 'SMS Sent!', result.message);
     } else {
-      showToast('error', 'Error', 'Unable to resend verification codes.');
+      showToast('error', 'SMS Failed', result.message);
+    }
+  };
+
+  const handleVerifyPhone = async () => {
+    const fullCode = smsCode.join('');
+    if (fullCode.length < 6) {
+      showToast('error', 'Incomplete Code', 'Please enter all 6 digits of your SMS code.');
+      return;
+    }
+
+    setIsVerifyingPhone(true);
+    const result = await verifyPhoneOtp(fullCode);
+    setIsVerifyingPhone(false);
+
+    if (result.success) {
+      showToast('success', 'Phone Verified!', result.message);
+    } else {
+      showToast('error', 'Verification Failed', result.message);
+    }
+  };
+
+  const handleResendEmail = async () => {
+    setIsResendingEmail(true);
+    const result = await resendEmailVerification();
+    setIsResendingEmail(false);
+
+    if (result.success) {
+      showToast('info', 'Email Resent', result.message);
+    } else {
+      showToast('error', 'Resend Failed', result.message);
     }
   };
 
@@ -97,127 +123,160 @@ export const VerifyEmailPage: React.FC = () => {
               <ShieldCheck className="w-8 h-8 text-sky-400" />
             </div>
           </Link>
-          <h1 className="text-3xl font-black text-white tracking-tight">Dual Account Verification</h1>
+          <h1 className="text-3xl font-black text-white tracking-tight">Verify Your Account</h1>
           <p className="text-sm text-slate-400">
-            Enter the 6-digit codes sent to your Gmail and Mobile/WhatsApp.
+            Complete both verification steps to activate your GuardianAI account.
           </p>
         </div>
 
-        {/* Live Dispatched Codes Banner */}
-        <div className="bg-sky-950/60 border border-sky-500/40 rounded-2xl p-5 space-y-4 text-center shadow-lg shadow-sky-950/50">
-          <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-sky-300 uppercase tracking-wider">
-            <CheckCircle2 className="w-4 h-4 text-sky-400" />
-            <span>Security Codes Dispatched Successfully</span>
-          </div>
-
-          {/* Code Display Badges */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-slate-950 p-3 rounded-xl border border-slate-800">
-            <div className="p-2.5 bg-slate-900/80 rounded-lg border border-sky-500/20 text-center space-y-1">
-              <span className="text-[10px] font-bold text-sky-400 uppercase tracking-wider block flex items-center justify-center gap-1">
-                <Mail className="w-3 h-3 text-sky-400" /> Gmail Security Code
+        {/* ── STEP 1: EMAIL VERIFICATION ────────────────────── */}
+        <Card className="space-y-4 border-slate-800 bg-slate-900/90">
+          <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+            {emailVerified ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            ) : (
+              <Mail className="w-5 h-5 text-sky-400" />
+            )}
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+              Step 1: Email Verification
+            </h2>
+            {emailVerified && (
+              <span className="ml-auto text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                ✓ VERIFIED
               </span>
-              <span className="text-xl font-black text-white tracking-widest font-mono select-all">
-                {emailOtp || '******'}
-              </span>
-            </div>
-
-            {pendingPhone && (
-              <div className="p-2.5 bg-slate-900/80 rounded-lg border border-emerald-500/20 text-center space-y-1">
-                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block flex items-center justify-center gap-1">
-                  <Phone className="w-3 h-3 text-emerald-400" /> Mobile / WhatsApp OTP
-                </span>
-                <span className="text-xl font-black text-white tracking-widest font-mono select-all">
-                  {mobileOtp || '******'}
-                </span>
-              </div>
             )}
           </div>
 
-          {/* 1-Click Instant Auto-Fill Action */}
-          <div className="flex flex-col items-center gap-2 pt-1">
-            <button
-              type="button"
-              onClick={handleAutoFill}
-              className="w-full py-2.5 px-4 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
-            >
-              <Zap className="w-4 h-4 fill-slate-950" />
-              <span>Click Here to Auto-Fill Both Verification Codes</span>
-            </button>
-            <p className="text-[11px] text-slate-400">
-              Dispatched to <strong className="text-white">{pendingEmail || 'your email'}</strong> {pendingPhone && <>and <strong className="text-white">{pendingPhone}</strong></>}
-            </p>
-          </div>
-        </div>
-
-        <Card className="space-y-6 border-slate-800 bg-slate-900/90">
-          {/* SECTION 1: GMAIL 6-DIGIT CODE */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
-              <Mail className="w-4 h-4 text-sky-400" />
-              <label className="text-xs font-bold text-white uppercase tracking-wider">
-                1. Gmail 6-Digit Verification Code
-              </label>
+          {emailVerified ? (
+            <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-4 text-center">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+              <p className="text-sm text-emerald-300 font-bold">Email verified successfully!</p>
+              <p className="text-xs text-slate-400 mt-1">{pendingEmail}</p>
             </div>
-
-            <div className="flex justify-center gap-2">
-              {emailCode.map((digit, idx) => (
-                <input
-                  key={idx}
-                  id={`email-code-input-${idx}`}
-                  type="text"
-                  maxLength={1}
-                  value={digit}
-                  onChange={(e) => handleEmailCodeChange(idx, e.target.value)}
-                  className="w-11 h-12 text-center text-xl font-bold bg-slate-950 border border-slate-800 focus:border-sky-400 text-white rounded-xl outline-none transition-all"
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* SECTION 2: MOBILE / WHATSAPP 6-DIGIT OTP */}
-          {pendingPhone && (
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
-                <Phone className="w-4 h-4 text-emerald-400" />
-                <label className="text-xs font-bold text-white uppercase tracking-wider">
-                  2. Mobile SMS / WhatsApp 6-Digit OTP
-                </label>
+          ) : (
+            <div className="space-y-3">
+              <div className="bg-sky-950/40 border border-sky-500/20 rounded-xl p-4 text-center space-y-2">
+                <div className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 text-sky-400 animate-spin" />
+                  <span className="text-xs font-bold text-sky-300 uppercase tracking-wider">
+                    Waiting for email verification...
+                  </span>
+                </div>
+                <p className="text-sm text-white">
+                  We sent a verification link to <strong className="text-sky-300">{pendingEmail || 'your email'}</strong>
+                </p>
+                <p className="text-xs text-slate-400">
+                  Open your Gmail inbox, find the email from <strong>noreply@guardianai-f6be8.firebaseapp.com</strong>, and click the verification link.
+                </p>
+                <div className="text-[11px] text-amber-300/90 flex items-center justify-center gap-1.5 font-medium pt-1">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Check your <strong className="text-amber-200">Spam / Junk</strong> folder if you don't see it in your inbox.</span>
+                </div>
               </div>
 
-              <div className="flex justify-center gap-2">
-                {mobileCode.map((digit, idx) => (
-                  <input
-                    key={idx}
-                    id={`mobile-code-input-${idx}`}
-                    type="text"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleMobileCodeChange(idx, e.target.value)}
-                    className="w-11 h-12 text-center text-xl font-bold bg-slate-950 border border-slate-800 focus:border-emerald-400 text-white rounded-xl outline-none transition-all"
-                  />
-                ))}
-              </div>
+              <button
+                onClick={handleResendEmail}
+                disabled={isResendingEmail}
+                className="w-full py-2 text-xs text-slate-400 hover:text-sky-400 font-bold transition-colors inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${isResendingEmail ? 'animate-spin' : ''}`} />
+                <span>{isResendingEmail ? 'Resending...' : 'Resend Verification Email'}</span>
+              </button>
+
+              {emailCheckCount > 10 && (
+                <p className="text-[11px] text-slate-500 text-center">
+                  Still checking... This page auto-detects when you click the email link.
+                </p>
+              )}
             </div>
           )}
-
-          <Button
-            onClick={handleVerify}
-            disabled={isVerifying}
-            className="w-full py-3 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black rounded-xl text-sm mt-2"
-          >
-            {isVerifying ? 'Verifying Codes...' : 'Complete Account Activation'}
-          </Button>
-
-          <div className="text-center pt-2">
-            <button
-              onClick={handleResend}
-              className="text-xs text-slate-400 hover:text-sky-400 font-bold transition-colors inline-flex items-center gap-1.5"
-            >
-              <RotateCw className="w-3.5 h-3.5" />
-              <span>Didn't receive codes? Resend Email & WhatsApp Codes</span>
-            </button>
-          </div>
         </Card>
+
+        {/* ── STEP 2: PHONE SMS VERIFICATION ────────────────── */}
+        {pendingPhone && (
+          <Card className="space-y-4 border-slate-800 bg-slate-900/90">
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+              {phoneVerified ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              ) : (
+                <Phone className="w-5 h-5 text-emerald-400" />
+              )}
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+                Step 2: Phone SMS Verification
+              </h2>
+              {phoneVerified && (
+                <span className="ml-auto text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                  ✓ VERIFIED
+                </span>
+              )}
+            </div>
+
+            {phoneVerified ? (
+              <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-4 text-center">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+                <p className="text-sm text-emerald-300 font-bold">Phone number verified!</p>
+                <p className="text-xs text-slate-400 mt-1">{pendingPhone}</p>
+              </div>
+            ) : !isSmsSent ? (
+              <div className="space-y-3 text-center">
+                <p className="text-sm text-slate-300">
+                  Send a real 6-digit SMS code to <strong className="text-white">{pendingPhone}</strong>
+                </p>
+                <Button
+                  onClick={handleSendSms}
+                  disabled={isSendingSms}
+                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-sm"
+                >
+                  {isSendingSms ? 'Sending SMS...' : 'Send SMS Verification Code'}
+                </Button>
+                <p className="text-[11px] text-slate-500">
+                  Phone number must be in international format: +91XXXXXXXXXX
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm text-slate-300 text-center">
+                  Enter the 6-digit code sent to <strong className="text-white">{pendingPhone}</strong>
+                </p>
+
+                <div className="flex justify-center gap-2">
+                  {smsCode.map((digit, idx) => (
+                    <input
+                      key={idx}
+                      id={`sms-code-input-${idx}`}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleSmsCodeChange(idx, e.target.value.replace(/\D/g, ''))}
+                      className="w-11 h-12 text-center text-xl font-bold bg-slate-950 border border-slate-800 focus:border-emerald-400 text-white rounded-xl outline-none transition-all"
+                    />
+                  ))}
+                </div>
+
+                <Button
+                  onClick={handleVerifyPhone}
+                  disabled={isVerifyingPhone}
+                  className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-sm"
+                >
+                  {isVerifyingPhone ? 'Verifying...' : 'Verify Phone Number'}
+                </Button>
+
+                <button
+                  onClick={handleSendSms}
+                  disabled={isSendingSms}
+                  className="w-full py-2 text-xs text-slate-400 hover:text-emerald-400 font-bold transition-colors inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <RotateCw className={`w-3.5 h-3.5 ${isSendingSms ? 'animate-spin' : ''}`} />
+                  <span>{isSendingSms ? 'Resending...' : 'Resend SMS Code'}</span>
+                </button>
+              </div>
+            )}
+          </Card>
+        )}
+
+        {/* Invisible reCAPTCHA container for Firebase Phone Auth */}
+        <div id="recaptcha-container" />
       </div>
     </PageTransition>
   );
