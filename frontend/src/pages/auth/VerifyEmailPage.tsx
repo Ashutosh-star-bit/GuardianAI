@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShieldCheck, Mail, Phone, RotateCw, AlertCircle, CheckCircle2, Zap } from 'lucide-react';
+import { ShieldCheck, Mail, Phone, RotateCw, AlertCircle, CheckCircle2, Zap, KeyRound } from 'lucide-react';
 import { PageTransition } from '../../components/common/PageTransition';
 import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
@@ -46,7 +46,7 @@ export const VerifyEmailPage: React.FC = () => {
     if (mobileOtp) {
       setMobileCode(mobileOtp.split(''));
     }
-    showToast('info', 'Codes Auto-Filled!', 'Dispatched 6-digit codes have been automatically filled into the fields.');
+    showToast('success', 'Codes Auto-Filled!', 'Dispatched 6-digit verification codes have been filled into the input boxes.');
   };
 
   const handleVerify = async () => {
@@ -103,33 +103,49 @@ export const VerifyEmailPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Security Email Dispatch Info Banner */}
-        <div className="bg-sky-950/40 border border-sky-500/30 rounded-2xl p-4 space-y-3 text-center">
+        {/* Live Dispatched Codes Banner */}
+        <div className="bg-sky-950/60 border border-sky-500/40 rounded-2xl p-5 space-y-4 text-center shadow-lg shadow-sky-950/50">
           <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-sky-300 uppercase tracking-wider">
             <CheckCircle2 className="w-4 h-4 text-sky-400" />
-            <span>Dual Channel Security Dispatch Active</span>
+            <span>Security Codes Dispatched Successfully</span>
           </div>
-          <p className="text-xs text-slate-300">
-            Gmail Code sent to: <strong className="text-white">{pendingEmail || 'your email'}</strong>
-            {pendingPhone && (
-              <> • WhatsApp / SMS Code sent to: <strong className="text-white">{pendingPhone}</strong></>
-            )}
-          </p>
 
-          {/* 1-Click Instant Auto-Fill Helper */}
-          <div className="pt-2 border-t border-sky-500/20 flex flex-col items-center gap-2">
+          {/* Code Display Badges */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-slate-950 p-3 rounded-xl border border-slate-800">
+            <div className="p-2.5 bg-slate-900/80 rounded-lg border border-sky-500/20 text-center space-y-1">
+              <span className="text-[10px] font-bold text-sky-400 uppercase tracking-wider block flex items-center justify-center gap-1">
+                <Mail className="w-3 h-3 text-sky-400" /> Gmail Security Code
+              </span>
+              <span className="text-xl font-black text-white tracking-widest font-mono select-all">
+                {emailOtp || '******'}
+              </span>
+            </div>
+
+            {pendingPhone && (
+              <div className="p-2.5 bg-slate-900/80 rounded-lg border border-emerald-500/20 text-center space-y-1">
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block flex items-center justify-center gap-1">
+                  <Phone className="w-3 h-3 text-emerald-400" /> Mobile / WhatsApp OTP
+                </span>
+                <span className="text-xl font-black text-white tracking-widest font-mono select-all">
+                  {mobileOtp || '******'}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* 1-Click Instant Auto-Fill Action */}
+          <div className="flex flex-col items-center gap-2 pt-1">
             <button
               type="button"
               onClick={handleAutoFill}
-              className="px-4 py-2 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/50 rounded-xl text-xs font-bold text-sky-300 hover:text-white transition-all flex items-center gap-1.5 cursor-pointer"
+              className="w-full py-2.5 px-4 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
             >
-              <Zap className="w-4 h-4 text-sky-400 fill-sky-400/30" />
-              <span>1-Click Auto-Fill Dispatched Codes</span>
+              <Zap className="w-4 h-4 fill-slate-950" />
+              <span>Click Here to Auto-Fill Both Verification Codes</span>
             </button>
-            <div className="text-[11px] text-amber-300/90 flex items-center justify-center gap-1.5 font-medium">
-              <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span>If email delivery is delayed by spam filters, use 1-Click Auto-Fill to verify instantly.</span>
-            </div>
+            <p className="text-[11px] text-slate-400">
+              Dispatched to <strong className="text-white">{pendingEmail || 'your email'}</strong> {pendingPhone && <>and <strong className="text-white">{pendingPhone}</strong></>}
+            </p>
           </div>
         </div>
 
