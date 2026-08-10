@@ -46,6 +46,7 @@ export const RegisterPage: React.FC = () => {
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
+    showToast('info', 'Connecting Security Server...', 'Dispatching verification codes via Gmail SMTP & SMS. Please wait a moment...');
     try {
       await registerUser(data.email, data.password, data.fullName, data.phone);
       setIsLoading(false);
