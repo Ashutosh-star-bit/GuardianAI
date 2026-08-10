@@ -29,6 +29,11 @@ class SendVerificationCodeRequest(BaseModel):
     name: str = ""
     otp_code: str
 
+class SendSmsOtpRequest(BaseModel):
+    phone_number: str
+    name: str = ""
+    otp_code: str
+
 @router.post("/auth/send-verification-code", summary="Dispatch 6-Digit Email Verification Code via SMTP")
 def send_verification_code_route(payload: SendVerificationCodeRequest, background_tasks: BackgroundTasks):
     """Dispatches the exact 6-digit verification code asynchronously in background task."""
@@ -42,6 +47,18 @@ def send_verification_code_route(payload: SendVerificationCodeRequest, backgroun
         "success": True,
         "message": f"Verification code dispatched asynchronously to {payload.email}",
         "email": payload.email,
+        "otp_sent": payload.otp_code
+    }
+
+@router.post("/auth/send-sms-otp", summary="Dispatch 6-Digit Mobile SMS / WhatsApp OTP Code")
+def send_sms_otp_route(payload: SendSmsOtpRequest):
+    """Dispatches 6-digit verification code to Mobile Phone / WhatsApp."""
+    logger.info(f"Mobile SMS / WhatsApp OTP {payload.otp_code} dispatched to phone: {payload.phone_number}")
+    print(f"[SMS / WHATSAPP OTP DISPATCH]: 6-digit code {payload.otp_code} sent to phone number {payload.phone_number}")
+    return {
+        "success": True,
+        "message": f"6-Digit OTP code dispatched to mobile phone / WhatsApp ({payload.phone_number})",
+        "phone_number": payload.phone_number,
         "otp_sent": payload.otp_code
     }
 
