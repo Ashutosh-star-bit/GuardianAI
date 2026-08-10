@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from '../config/firebase';
 
 export type SubscriptionTier = 'FREE' | 'PRO' | 'BUSINESS' | 'ENTERPRISE';
 
@@ -39,7 +41,7 @@ interface AuthContextType {
   pendingPhone: string | null;
   scanHistory: ScanRecordItem[];
   login: (email: string, pass: string) => Promise<{ success: boolean; message: string }>;
-  socialLogin: (provider: 'google' | 'github') => Promise<{ success: boolean; message: string }>;
+  googleSignIn: () => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   registerUser: (email: string, pass: string, name: string, phone?: string) => Promise<{ success: boolean; emailOtp: string; mobileOtp: string }>;
   resendVerificationCode: () => Promise<{ success: boolean; emailOtp: string; mobileOtp: string }>;
@@ -182,28 +184,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
-  const socialLogin = async (provider: 'google' | 'github') => {
-    let email = provider === 'google' ? 'user.google@gmail.com' : 'developer@github.com';
-    let name = provider === 'google' ? 'Google Authorized User' : 'GitHub Developer User';
+  /**
+   * Real Firebase Google Sign-In using signInWithPopup.
+   * Opens a secure Google OAuth consent popup.
+   * On success, creates a verified user profile from the Google account data.
+   */
+  const googleSignIn = async (): Promise<{ success: boolean; message: string }> => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const firebaseUser = result.user;
 
-    const savedScanCountStr = localStorage.getItem(`guardianai_scancount_${email}`);
-    const savedScanCount = savedScanCountStr ? parseInt(savedScanCountStr, 10) : 0;
+      const email = firebaseUser.email || 'unknown@gmail.com';
+      const name = firebaseUser.displayName || email.split('@')[0];
 
-    const socialProfile: UserProfile = {
-      id: `usr_${provider}_${Math.random().toString(36).substr(2, 7)}`,
-      email,
-      fullName: name,
-      role: 'USER',
-      subscriptionTier: 'FREE',
-      scanCount: savedScanCount,
-      monthlyLimit: 15,
-      isVerified: true,
-      createdAt: new Date().toISOString(),
-    };
+      const savedScanCountStr = localStorage.getItem(`guardianai_scancount_${email}`);
+      const savedScanCount = savedScanCountStr ? parseInt(savedScanCountStr, 10) : 0;
 
-    setCurrentUser(socialProfile);
-    localStorage.setItem('guardianai_access_token', `gai_live_token_${socialProfile.id}`);
-    return { success: true, message: `Successfully authenticated via ${provider.toUpperCase()} Single Sign-On!` };
+      // Check if this Google user already has a stored profile
+      const existingStr = localStorage.getItem(`guardianai_db_user_${email}`);
+      if (existingStr) {
+        try {
+          const existing = JSON.parse(existingStr);
+          existing.profile.isVerified = true;
+          existing.profile.scanCount = savedScanCount || existing.profile.scanCount || 0;
+          if (existing.profile.subscriptionTier === 'FREE') {
+            existing.profile.monthlyLimit = 15;
+          }
+          setCurrentUser(existing.profile);
+          localStorage.setItem('guardianai_access_token', `gai_live_token_${existing.profile.id}`);
+          return { success: true, message: `Welcome back, ${existing.profile.fullName}! Signed in via Google.` };
+        } catch {
+          // Fall through to create new profile
+        }
+      }
+
+      // Create new verified profile from Google account data
+      const googleProfile: UserProfile = {
+        id: `usr_google_${firebaseUser.uid.substring(0, 12)}`,
+        email,
+        fullName: name,
+        role: 'USER',
+        subscriptionTier: 'FREE',
+        scanCount: savedScanCount,
+        monthlyLimit: 15,
+        isVerified: true,
+        createdAt: new Date().toISOString(),
+      };
+
+      // Persist the Google user
+      localStorage.setItem(`guardianai_db_user_${email}`, JSON.stringify({ password: '__google_sso__', profile: googleProfile }));
+      setCurrentUser(googleProfile);
+      localStorage.setItem('guardianai_access_token', `gai_live_token_${googleProfile.id}`);
+
+      return { success: true, message: `Welcome, ${name}! Authenticated via Google Single Sign-On.` };
+    } catch (error: any) {
+      console.error('[GOOGLE SSO ERROR]', error);
+
+      if (error?.code === 'auth/popup-closed-by-user') {
+        return { success: false, message: 'Google sign-in popup was closed. Please try again.' };
+      }
+      if (error?.code === 'auth/cancelled-popup-request') {
+        return { success: false, message: 'Another sign-in popup is already open.' };
+      }
+      if (error?.code === 'auth/popup-blocked') {
+        return { success: false, message: 'Popup was blocked by your browser. Please allow popups for this site and try again.' };
+      }
+
+      return { success: false, message: error?.message || 'Google authentication failed. Please try again.' };
+    }
   };
 
   const registerUser = async (email: string, pass: string, name: string, phone?: string) => {
@@ -414,7 +462,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         pendingPhone,
         scanHistory,
         login,
-        socialLogin,
+        googleSignIn,
         logout,
         registerUser,
         resendVerificationCode,

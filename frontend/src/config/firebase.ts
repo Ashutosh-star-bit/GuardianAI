@@ -1,9 +1,10 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, GithubAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 
 /**
  * GuardianAI Google Firebase Authentication Configuration
- * Provides 10,000 Free Phone SMS OTPs / month, 1-Click Google/GitHub SSO, and Email Auth.
+ * Provides Real Google OAuth SSO via signInWithPopup.
+ * Free Tier: 10,000 Phone SMS OTPs/month + Unlimited Email/Google Auth.
  */
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyABoh2-7rEpaA00UH0yfdfJylt53AguEnA',
@@ -17,4 +18,3 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-export const githubProvider = new GithubAuthProvider();
