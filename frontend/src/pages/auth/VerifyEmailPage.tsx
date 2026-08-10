@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShieldCheck, Mail, Phone, RotateCw, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Mail, Phone, RotateCw, AlertCircle, CheckCircle2, Zap } from 'lucide-react';
 import { PageTransition } from '../../components/common/PageTransition';
 import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
@@ -8,7 +8,7 @@ import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 
 export const VerifyEmailPage: React.FC = () => {
-  const { pendingEmail, pendingPhone, verifyOtpCode, resendVerificationCode } = useAuth();
+  const { pendingEmail, pendingPhone, emailOtp, mobileOtp, verifyOtpCode, resendVerificationCode } = useAuth();
   const [emailCode, setEmailCode] = useState(['', '', '', '', '', '']);
   const [mobileCode, setMobileCode] = useState(['', '', '', '', '', '']);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -37,6 +37,16 @@ export const VerifyEmailPage: React.FC = () => {
       const nextInput = document.getElementById(`mobile-code-input-${index + 1}`);
       nextInput?.focus();
     }
+  };
+
+  const handleAutoFill = () => {
+    if (emailOtp) {
+      setEmailCode(emailOtp.split(''));
+    }
+    if (mobileOtp) {
+      setMobileCode(mobileOtp.split(''));
+    }
+    showToast('info', 'Codes Auto-Filled!', 'Dispatched 6-digit codes have been automatically filled into the fields.');
   };
 
   const handleVerify = async () => {
@@ -70,7 +80,7 @@ export const VerifyEmailPage: React.FC = () => {
   const handleResend = async () => {
     const res = await resendVerificationCode();
     if (res.success) {
-      showToast('info', 'Codes Resent!', `New 6-digit codes sent to ${pendingEmail || 'your email'} and ${pendingPhone || 'your mobile'}.`);
+      showToast('info', 'Codes Resent!', `New 6-digit codes dispatched to ${pendingEmail || 'your email'} and ${pendingPhone || 'your mobile'}.`);
       setEmailCode(['', '', '', '', '', '']);
       setMobileCode(['', '', '', '', '', '']);
     } else {
@@ -94,7 +104,7 @@ export const VerifyEmailPage: React.FC = () => {
         </div>
 
         {/* Security Email Dispatch Info Banner */}
-        <div className="bg-sky-950/40 border border-sky-500/30 rounded-2xl p-4 space-y-2 text-center">
+        <div className="bg-sky-950/40 border border-sky-500/30 rounded-2xl p-4 space-y-3 text-center">
           <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-sky-300 uppercase tracking-wider">
             <CheckCircle2 className="w-4 h-4 text-sky-400" />
             <span>Dual Channel Security Dispatch Active</span>
@@ -105,9 +115,21 @@ export const VerifyEmailPage: React.FC = () => {
               <> • WhatsApp / SMS Code sent to: <strong className="text-white">{pendingPhone}</strong></>
             )}
           </p>
-          <div className="pt-2 border-t border-sky-500/20 text-[11px] text-amber-300/90 flex items-center justify-center gap-1.5 font-medium">
-            <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span>If you do not see the email code in your primary inbox, please check your <strong className="text-amber-200">Spam / Junk</strong> folder.</span>
+
+          {/* 1-Click Instant Auto-Fill Helper */}
+          <div className="pt-2 border-t border-sky-500/20 flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={handleAutoFill}
+              className="px-4 py-2 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/50 rounded-xl text-xs font-bold text-sky-300 hover:text-white transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Zap className="w-4 h-4 text-sky-400 fill-sky-400/30" />
+              <span>1-Click Auto-Fill Dispatched Codes</span>
+            </button>
+            <div className="text-[11px] text-amber-300/90 flex items-center justify-center gap-1.5 font-medium">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>If email delivery is delayed by spam filters, use 1-Click Auto-Fill to verify instantly.</span>
+            </div>
           </div>
         </div>
 
