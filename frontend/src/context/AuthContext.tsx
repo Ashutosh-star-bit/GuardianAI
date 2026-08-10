@@ -246,9 +246,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Trigger backend SMTP email dispatch service with exact generated 6-digit OTP code (2.5s max timeout to prevent UI freeze)
     try {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '') : 'http://localhost:8000/api/v1';
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 2500);
-      await fetch('http://localhost:8000/api/v1/auth/send-verification-code', {
+      await fetch(`${apiBaseUrl}/auth/send-verification-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail, name: name || cleanEmail.split('@')[0], otp_code: generatedOtp }),
@@ -284,9 +285,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('guardianai_pending_otp', newOtp);
 
     try {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '') : 'http://localhost:8000/api/v1';
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 2500);
-      await fetch('http://localhost:8000/api/v1/auth/send-verification-code', {
+      await fetch(`${apiBaseUrl}/auth/send-verification-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: pendingEmail, name: pendingEmail.split('@')[0], otp_code: newOtp }),

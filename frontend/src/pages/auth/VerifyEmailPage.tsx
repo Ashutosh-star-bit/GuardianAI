@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShieldCheck, Mail, RotateCw, AlertCircle, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { ShieldCheck, Mail, RotateCw, AlertCircle } from 'lucide-react';
 import { PageTransition } from '../../components/common/PageTransition';
 import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
@@ -8,10 +8,9 @@ import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 
 export const VerifyEmailPage: React.FC = () => {
-  const { pendingEmail, verificationOtp, verifyOtpCode, resendVerificationCode } = useAuth();
+  const { pendingEmail, verifyOtpCode, resendVerificationCode } = useAuth();
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [showHelperCode, setShowHelperCode] = useState(false);
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -59,14 +58,6 @@ export const VerifyEmailPage: React.FC = () => {
     }
   };
 
-  const handleAutoFillCode = () => {
-    if (verificationOtp && verificationOtp.length === 6) {
-      const digits = verificationOtp.split('');
-      setCode(digits);
-      showToast('success', 'Code Auto-Filled!', 'Verification code filled automatically.');
-    }
-  };
-
   return (
     <PageTransition className="min-h-[80vh] flex items-center justify-center py-12 px-4">
       <div className="w-full max-w-md space-y-6">
@@ -83,52 +74,24 @@ export const VerifyEmailPage: React.FC = () => {
         </div>
 
         {/* Security Email Dispatch Info Banner */}
-        <div className="bg-sky-950/40 border border-sky-500/30 rounded-2xl p-4 text-center space-y-2.5">
+        <div className="bg-sky-950/40 border border-sky-500/30 rounded-2xl p-4 text-center space-y-2">
           <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-sky-300 uppercase tracking-wider">
             <Mail className="w-4 h-4 text-sky-400" />
-            <span>Verification Email Dispatched</span>
+            <span>Verification Code Dispatched</span>
           </div>
           <p className="text-xs text-slate-300">
-            A 6-digit verification code was sent to <strong className="text-white">{pendingEmail || 'your email inbox'}</strong>.
+            A 6-digit verification code has been dispatched to <strong className="text-white">{pendingEmail || 'your email inbox'}</strong>.
           </p>
-          
-          <div className="pt-2 border-t border-sky-500/20 space-y-2">
-            <div className="text-[11px] text-amber-300/90 flex items-center justify-center gap-1.5 font-medium">
-              <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span>Please check your <strong className="text-amber-200">Spam / Junk</strong> folder if not in primary inbox.</span>
-            </div>
-
-            {/* Revealer / Auto-fill Helper for Testing */}
-            {verificationOtp && (
-              <div className="pt-1 flex items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowHelperCode(!showHelperCode)}
-                  className="text-xs text-sky-400 hover:text-sky-300 font-bold underline flex items-center gap-1 transition-colors"
-                >
-                  {showHelperCode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  <span>{showHelperCode ? 'Hide Testing Helper Code' : 'Click to View Testing Code'}</span>
-                </button>
-
-                {showHelperCode && (
-                  <button
-                    type="button"
-                    onClick={handleAutoFillCode}
-                    className="px-2 py-0.5 bg-sky-500/20 border border-sky-400/40 text-sky-300 text-[11px] font-bold rounded-lg hover:bg-sky-500/30 flex items-center gap-1"
-                  >
-                    <Sparkles className="w-3 h-3 text-sky-400" />
-                    <span>Auto-Fill [{verificationOtp}]</span>
-                  </button>
-                )}
-              </div>
-            )}
+          <div className="pt-2 border-t border-sky-500/20 text-[11px] text-amber-300/90 flex items-center justify-center gap-1.5 font-medium">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>If you do not see the verification code in your primary inbox, please check your <strong className="text-amber-200">Spam / Junk</strong> folder.</span>
           </div>
         </div>
 
         <Card className="space-y-6 border-slate-800 bg-slate-900/90">
           <div className="space-y-4">
             <label className="text-xs font-bold text-slate-300 block text-center">
-              6-Digit Verification Code
+              6-Digit Code
             </label>
 
             <div className="flex justify-center gap-2">
