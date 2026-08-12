@@ -3,11 +3,8 @@ import {
   signInWithPopup,
   createUserWithEmailAndPassword,
   sendEmailVerification,
-  signInWithPhoneNumber,
-  RecaptchaVerifier,
   reload,
 } from 'firebase/auth';
-import type { ConfirmationResult, User as FirebaseUser } from 'firebase/auth';
 import { auth, googleProvider } from '../config/firebase';
 
 export type SubscriptionTier = 'FREE' | 'PRO' | 'BUSINESS' | 'ENTERPRISE';
@@ -54,8 +51,6 @@ interface AuthContextType {
   googleSignIn: () => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   registerUser: (email: string, pass: string, name: string, phone?: string) => Promise<{ success: boolean }>;
-  sendPhoneOtp: (phoneNumber: string, recaptchaContainerId: string) => Promise<{ success: boolean; message: string }>;
-  verifyPhoneOtp: (code: string) => Promise<{ success: boolean; message: string }>;
   resendEmailVerification: () => Promise<{ success: boolean; message: string }>;
   checkEmailVerified: () => Promise<boolean>;
   finalizeRegistration: () => void;
@@ -66,6 +61,8 @@ interface AuthContextType {
   addScanRecord: (record: Omit<ScanRecordItem, 'id' | 'timestamp'>) => ScanRecordItem;
   clearScanHistory: () => void;
   resendVerificationCode: () => Promise<{ success: boolean; emailOtp: string; mobileOtp: string }>;
+  sendPhoneOtp: (phoneNumber: string, recaptchaContainerId: string) => Promise<{ success: boolean; message: string }>;
+  verifyPhoneOtp: (code: string) => Promise<{ success: boolean; message: string }>;
 }
 
 const MASTER_ADMIN_ACCOUNTS: Record<string, UserProfile> = {
@@ -109,13 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return localStorage.getItem('guardianai_pending_email');
   });
 
-  const [pendingPhone, setPendingPhone] = useState<string | null>(() => {
-    return localStorage.getItem('guardianai_pending_phone');
-  });
-
   const [emailVerified, setEmailVerified] = useState(false);
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [phoneConfirmationResult, setPhoneConfirmationResult] = useState<ConfirmationResult | null>(null);
 
   const [scanHistory, setScanHistory] = useState<ScanRecordItem[]>(() => {
     const savedHistory = localStorage.getItem('guardianai_real_scan_history');
@@ -156,7 +147,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, pass: string) => {
     const cleanEmail = email.trim().toLowerCase();
 
-    // Master Admin shortcut
     if (MASTER_ADMIN_ACCOUNTS[cleanEmail]) {
       if (pass === 'Admin@12345' || pass.length >= 6) {
         const adminUser = MASTER_ADMIN_ACCOUNTS[cleanEmail];
@@ -168,7 +158,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Check localStorage registered users
     const storedAuthStr = localStorage.getItem(`guardianai_db_user_${cleanEmail}`);
     const savedScanCountStr = localStorage.getItem(`guardianai_scancount_${cleanEmail}`);
     const savedScanCount = savedScanCountStr ? parseInt(savedScanCountStr, 10) : 0;
@@ -187,23 +176,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           return { success: false, message: 'Incorrect password.' };
         }
-      } catch (err) {
+      } catch {
         // Fallback
       }
     }
 
     return {
       success: false,
-      message: 'No account found with this email address. Please click "Create Account" to sign up.',
+      message: 'No account found with this email. Please click "Create Account" to sign up.',
     };
   };
 
-  // ─── Real Firebase Google Sign-In ─────────────────────────────
+  // ─── Real Firebase Google Sign-In (Opens Google Popup) ────────
   const googleSignIn = async (): Promise<{ success: boolean; message: string }> => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const firebaseUser = result.user;
-
       const email = firebaseUser.email || 'unknown@gmail.com';
       const name = firebaseUser.displayName || email.split('@')[0];
 
@@ -216,15 +204,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const existing = JSON.parse(existingStr);
           existing.profile.isVerified = true;
           existing.profile.scanCount = savedScanCount || existing.profile.scanCount || 0;
-          if (existing.profile.subscriptionTier === 'FREE') {
-            existing.profile.monthlyLimit = 15;
-          }
+          if (existing.profile.subscriptionTier === 'FREE') existing.profile.monthlyLimit = 15;
           setCurrentUser(existing.profile);
           localStorage.setItem('guardianai_access_token', `gai_live_token_${existing.profile.id}`);
-          return { success: true, message: `Welcome back, ${existing.profile.fullName}! Signed in via Google.` };
-        } catch {
-          // Fall through
-        }
+          return { success: true, message: `Welcome back, ${existing.profile.fullName}!` };
+        } catch { /* fall through */ }
       }
 
       const googleProfile: UserProfile = {
@@ -242,50 +226,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(`guardianai_db_user_${email}`, JSON.stringify({ password: '__google_sso__', profile: googleProfile }));
       setCurrentUser(googleProfile);
       localStorage.setItem('guardianai_access_token', `gai_live_token_${googleProfile.id}`);
-
-      return { success: true, message: `Welcome, ${name}! Authenticated via Google Single Sign-On.` };
+      return { success: true, message: `Welcome, ${name}! Authenticated via Google.` };
     } catch (error: any) {
       console.error('[GOOGLE SSO ERROR]', error);
-      if (error?.code === 'auth/popup-closed-by-user') {
-        return { success: false, message: 'Google sign-in popup was closed. Please try again.' };
-      }
-      if (error?.code === 'auth/popup-blocked') {
-        return { success: false, message: 'Popup was blocked by your browser. Please allow popups for this site.' };
-      }
+      if (error?.code === 'auth/popup-closed-by-user') return { success: false, message: 'Google sign-in popup was closed.' };
+      if (error?.code === 'auth/popup-blocked') return { success: false, message: 'Popup blocked. Please allow popups for this site.' };
       return { success: false, message: error?.message || 'Google authentication failed.' };
     }
   };
 
-  // ─── Real Firebase Registration with Email Verification ───────
-  const registerUser = async (email: string, pass: string, name: string, phone?: string) => {
+  // ─── Firebase Registration + Email Verification Link ──────────
+  const registerUser = async (email: string, pass: string, name: string) => {
     const cleanEmail = email.trim().toLowerCase();
-    const cleanPhone = phone ? phone.trim() : '';
 
-    // Check if already registered locally
     const existingDbUser = localStorage.getItem(`guardianai_db_user_${cleanEmail}`);
     if (MASTER_ADMIN_ACCOUNTS[cleanEmail] || existingDbUser) {
-      throw new Error('An account already exists with this email address. Please sign in instead.');
+      throw new Error('An account already exists with this email. Please sign in instead.');
     }
 
-    // 1. Create real Firebase user
+    // Create real Firebase user + send verification email
     const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
-    const firebaseUser = userCredential.user;
+    await sendEmailVerification(userCredential.user);
 
-    // 2. Send real verification email via Firebase (arrives from Google's servers)
-    await sendEmailVerification(firebaseUser);
-    console.log(`[FIREBASE] Verification email sent to ${cleanEmail}`);
-
-    // Store pending state
     setPendingEmail(cleanEmail);
-    setPendingPhone(cleanPhone);
     setEmailVerified(false);
-    setPhoneVerified(!cleanPhone); // If no phone, mark as verified
     localStorage.setItem('guardianai_pending_email', cleanEmail);
-    if (cleanPhone) localStorage.setItem('guardianai_pending_phone', cleanPhone);
 
-    // Save draft user locally
+    // Save draft profile locally
     const draftProfile: UserProfile = {
-      id: `usr_${firebaseUser.uid.substring(0, 12)}`,
+      id: `usr_${userCredential.user.uid.substring(0, 12)}`,
       email: cleanEmail,
       fullName: name || cleanEmail.split('@')[0],
       role: 'USER',
@@ -297,109 +266,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     localStorage.setItem(`guardianai_draft_user_${cleanEmail}`, JSON.stringify({ password: pass, profile: draftProfile }));
-
     return { success: true };
-  };
-
-  // ─── Send Real Phone SMS OTP via Firebase ─────────────────────
-  const sendPhoneOtp = async (phoneNumber: string, recaptchaContainerId: string): Promise<{ success: boolean; message: string }> => {
-    try {
-      // Clean up any existing recaptcha
-      if ((window as any).__guardianai_recaptcha) {
-        (window as any).__guardianai_recaptcha.clear();
-      }
-
-      const recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaContainerId, {
-        size: 'invisible',
-        callback: () => {
-          console.log('[FIREBASE] reCAPTCHA solved');
-        },
-      });
-
-      (window as any).__guardianai_recaptcha = recaptchaVerifier;
-
-      const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
-      setPhoneConfirmationResult(confirmationResult);
-
-      console.log(`[FIREBASE] SMS OTP sent to ${phoneNumber}`);
-      return { success: true, message: `6-digit SMS code sent to ${phoneNumber}` };
-    } catch (error: any) {
-      console.error('[FIREBASE PHONE OTP ERROR]', error);
-
-      if (error?.code === 'auth/quota-exceeded') {
-        return { success: false, message: 'SMS quota exceeded for today (10/day limit). Please try again tomorrow or add a billing account to Firebase.' };
-      }
-      if (error?.code === 'auth/invalid-phone-number') {
-        return { success: false, message: 'Invalid phone number format. Please use international format: +91XXXXXXXXXX' };
-      }
-      if (error?.code === 'auth/too-many-requests') {
-        return { success: false, message: 'Too many attempts. Please wait a few minutes and try again.' };
-      }
-
-      return { success: false, message: error?.message || 'Failed to send SMS OTP. Please try again.' };
-    }
-  };
-
-  // ─── Verify Phone SMS OTP Code ────────────────────────────────
-  const verifyPhoneOtp = async (code: string): Promise<{ success: boolean; message: string }> => {
-    if (!phoneConfirmationResult) {
-      return { success: false, message: 'No SMS verification in progress. Please request a new code.' };
-    }
-
-    try {
-      await phoneConfirmationResult.confirm(code);
-      setPhoneVerified(true);
-      console.log('[FIREBASE] Phone number verified successfully!');
-      return { success: true, message: 'Phone number verified successfully!' };
-    } catch (error: any) {
-      console.error('[FIREBASE PHONE VERIFY ERROR]', error);
-      if (error?.code === 'auth/invalid-verification-code') {
-        return { success: false, message: 'Invalid SMS code. Please check and try again.' };
-      }
-      if (error?.code === 'auth/code-expired') {
-        return { success: false, message: 'SMS code expired. Please request a new one.' };
-      }
-      return { success: false, message: error?.message || 'Phone verification failed.' };
-    }
   };
 
   // ─── Resend Email Verification ────────────────────────────────
   const resendEmailVerification = async (): Promise<{ success: boolean; message: string }> => {
     const firebaseUser = auth.currentUser;
-    if (!firebaseUser) {
-      return { success: false, message: 'No user session found. Please register again.' };
-    }
+    if (!firebaseUser) return { success: false, message: 'No user session. Please register again.' };
 
     try {
       await sendEmailVerification(firebaseUser);
       return { success: true, message: `Verification email resent to ${firebaseUser.email}` };
     } catch (error: any) {
-      if (error?.code === 'auth/too-many-requests') {
-        return { success: false, message: 'Too many requests. Please wait a minute before resending.' };
-      }
-      return { success: false, message: error?.message || 'Failed to resend verification email.' };
+      if (error?.code === 'auth/too-many-requests') return { success: false, message: 'Too many requests. Wait a minute.' };
+      return { success: false, message: error?.message || 'Failed to resend.' };
     }
   };
 
-  // ─── Check if Email is Verified (polls Firebase) ──────────────
+  // ─── Check Email Verified (polls Firebase) ────────────────────
   const checkEmailVerified = useCallback(async (): Promise<boolean> => {
     const firebaseUser = auth.currentUser;
     if (!firebaseUser) return false;
-
     try {
       await reload(firebaseUser);
       const verified = firebaseUser.emailVerified;
       setEmailVerified(verified);
       return verified;
-    } catch {
-      return false;
-    }
+    } catch { return false; }
   }, []);
 
-  // ─── Finalize Registration (both email + phone verified) ──────
+  // ─── Finalize Registration ────────────────────────────────────
   const finalizeRegistration = () => {
     if (!pendingEmail) return;
-
     const draftStr = localStorage.getItem(`guardianai_draft_user_${pendingEmail}`);
     if (draftStr) {
       try {
@@ -408,51 +306,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem(`guardianai_db_user_${pendingEmail}`, JSON.stringify(draft));
         setCurrentUser(draft.profile);
         localStorage.setItem('guardianai_access_token', `gai_live_token_${draft.profile.id}`);
-      } catch {
-        // Fallback
-      }
+      } catch { /* fallback */ }
     }
-
-    // Clean up pending state
     setPendingEmail(null);
-    setPendingPhone(null);
     setEmailVerified(false);
-    setPhoneVerified(false);
     localStorage.removeItem('guardianai_pending_email');
-    localStorage.removeItem('guardianai_pending_phone');
     localStorage.removeItem(`guardianai_draft_user_${pendingEmail}`);
   };
 
-  // ─── Legacy verifyOtpCode (kept for backward compat) ──────────
-  const verifyOtpCode = (_enteredEmailCode: string, _enteredMobileCode?: string): boolean => {
-    // With real Firebase verification, this is no longer used for new registrations
-    // But kept for backward compatibility with existing code paths
-    return true;
+  // ─── Legacy stubs (backward compatibility) ────────────────────
+  const verifyOtpCode = () => true;
+  const resendVerificationCode = async () => {
+    const r = await resendEmailVerification();
+    return { success: r.success, emailOtp: '', mobileOtp: '' };
   };
+  const sendPhoneOtp = async () => ({ success: false, message: 'Phone verification removed.' });
+  const verifyPhoneOtp = async () => ({ success: false, message: 'Phone verification removed.' });
 
-  const resendVerificationCode = async (): Promise<{ success: boolean; emailOtp: string; mobileOtp: string }> => {
-    const result = await resendEmailVerification();
-    return { success: result.success, emailOtp: '', mobileOtp: '' };
-  };
-
-  // ─── Standard Auth Actions ────────────────────────────────────
   const logout = () => {
     setCurrentUser(null);
     localStorage.removeItem('guardianai_access_token');
     localStorage.removeItem('guardianai_user_session');
-    // Sign out of Firebase too
     auth.signOut().catch(() => {});
   };
 
   const upgradeSubscription = (newTier: SubscriptionTier) => {
     if (!currentUser) return;
-    const limit = newTier === 'FREE' ? 15 : -1;
-    const updated: UserProfile = {
-      ...currentUser,
-      subscriptionTier: newTier,
-      monthlyLimit: limit,
-    };
-    setCurrentUser(updated);
+    setCurrentUser({ ...currentUser, subscriptionTier: newTier, monthlyLimit: newTier === 'FREE' ? 15 : -1 });
   };
 
   const switchAdminPerspective = (tier: SubscriptionTier | 'DEFAULT') => {
@@ -462,64 +342,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const incrementScanCount = (): boolean => {
     if (!currentUser) return false;
-    if (currentUser.monthlyLimit !== -1 && currentUser.scanCount >= currentUser.monthlyLimit) {
-      return false;
-    }
-    const updated: UserProfile = {
-      ...currentUser,
-      scanCount: currentUser.scanCount + 1,
-    };
+    if (currentUser.monthlyLimit !== -1 && currentUser.scanCount >= currentUser.monthlyLimit) return false;
+    const updated = { ...currentUser, scanCount: currentUser.scanCount + 1 };
     setCurrentUser(updated);
     localStorage.setItem(`guardianai_scancount_${currentUser.email}`, String(updated.scanCount));
     return true;
   };
 
   const addScanRecord = (record: Omit<ScanRecordItem, 'id' | 'timestamp'>): ScanRecordItem => {
-    const newItem: ScanRecordItem = {
-      ...record,
-      id: `scn_${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: new Date().toISOString(),
-    };
+    const newItem: ScanRecordItem = { ...record, id: `scn_${Math.random().toString(36).substr(2, 9)}`, timestamp: new Date().toISOString() };
     setScanHistory((prev) => [newItem, ...prev]);
     return newItem;
   };
 
-  const clearScanHistory = () => {
-    setScanHistory([]);
-  };
+  const clearScanHistory = () => setScanHistory([]);
 
   return (
     <AuthContext.Provider
       value={{
-        currentUser,
-        isAuthenticated,
-        isAdmin,
-        effectiveTier,
-        activePerspective,
-        verificationOtp: null,
-        emailOtp: null,
-        mobileOtp: null,
-        pendingEmail,
-        pendingPhone,
-        emailVerified,
-        phoneVerified,
+        currentUser, isAuthenticated, isAdmin, effectiveTier, activePerspective,
+        verificationOtp: null, emailOtp: null, mobileOtp: null,
+        pendingEmail, pendingPhone: null, emailVerified, phoneVerified: true,
         scanHistory,
-        login,
-        googleSignIn,
-        logout,
-        registerUser,
-        sendPhoneOtp,
-        verifyPhoneOtp,
-        resendEmailVerification,
-        checkEmailVerified,
-        finalizeRegistration,
-        verifyOtpCode,
-        resendVerificationCode,
-        upgradeSubscription,
-        switchAdminPerspective,
-        incrementScanCount,
-        addScanRecord,
-        clearScanHistory,
+        login, googleSignIn, logout, registerUser,
+        resendEmailVerification, checkEmailVerified, finalizeRegistration,
+        verifyOtpCode, resendVerificationCode, sendPhoneOtp, verifyPhoneOtp,
+        upgradeSubscription, switchAdminPerspective, incrementScanCount, addScanRecord, clearScanHistory,
       }}
     >
       {children}
@@ -529,8 +377,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };

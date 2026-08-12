@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ShieldCheck, Mail, Lock, User, Eye, EyeOff, Phone } from 'lucide-react';
+import { ShieldCheck, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 import { PageTransition } from '../../components/common/PageTransition';
 import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
@@ -15,7 +15,6 @@ const registerSchema = z
   .object({
     fullName: z.string().min(2, 'Full name must be at least 2 characters'),
     email: z.string().email('Please enter a valid Gmail / Email address'),
-    phone: z.string().min(10, 'Please enter a valid phone number with country code (e.g. +91...)'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     confirmPassword: z.string(),
   })
@@ -47,17 +46,16 @@ export const RegisterPage: React.FC = () => {
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     try {
-      await registerUser(data.email, data.password, data.fullName, data.phone);
+      await registerUser(data.email, data.password, data.fullName);
       setIsLoading(false);
       showToast(
         'success',
         'Verification Email Sent!',
-        `A verification link has been sent to ${data.email}. Please check your inbox to verify your account.`
+        `A verification link has been sent to ${data.email}. Please check your Gmail inbox and click the link.`
       );
       navigate('/verify-email');
     } catch (err: any) {
       setIsLoading(false);
-      // Firebase-specific error messages
       const code = err?.code;
       if (code === 'auth/email-already-in-use') {
         showToast('error', 'Account Exists', 'An account with this email already exists. Please sign in instead.');
@@ -77,7 +75,7 @@ export const RegisterPage: React.FC = () => {
       const res = await googleSignIn();
       setIsLoading(false);
       if (res.success) {
-        showToast('success', 'Google Registration Successful', res.message);
+        showToast('success', 'Google Sign-Up Successful', res.message);
         navigate('/');
       } else {
         showToast('error', 'Google Sign-Up Failed', res.message);
@@ -98,11 +96,11 @@ export const RegisterPage: React.FC = () => {
             </div>
           </Link>
           <h1 className="text-3xl font-black text-white tracking-tight">Create Account</h1>
-          <p className="text-sm text-slate-400">Register with real email & phone verification powered by Firebase.</p>
+          <p className="text-sm text-slate-400">Register with real email verification powered by Google Firebase.</p>
         </div>
 
         <Card className="space-y-6 border-slate-800 bg-slate-900/90">
-          {/* Google SSO Button (Real Firebase OAuth) */}
+          {/* Google SSO — Real Firebase OAuth Popup */}
           <button
             type="button"
             onClick={handleGoogleSignUp}
@@ -120,7 +118,7 @@ export const RegisterPage: React.FC = () => {
 
           <div className="flex items-center gap-3 my-2">
             <div className="h-[1px] bg-slate-800 flex-1" />
-            <span className="text-[10px] text-slate-500 font-bold uppercase">or register with email & phone</span>
+            <span className="text-[10px] text-slate-500 font-bold uppercase">or register with email</span>
             <div className="h-[1px] bg-slate-800 flex-1" />
           </div>
 
@@ -151,20 +149,6 @@ export const RegisterPage: React.FC = () => {
                 />
               </div>
               {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email.message}</p>}
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">Mobile Phone Number (with country code)</label>
-              <div className="relative">
-                <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                <input
-                  type="tel"
-                  {...register('phone')}
-                  placeholder="+91 98765 43210"
-                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-400 text-white text-sm rounded-xl pl-9 pr-3 py-2.5 outline-none transition-all"
-                />
-              </div>
-              {errors.phone && <p className="text-xs text-red-400 mt-1">{errors.phone.message}</p>}
             </div>
 
             <div>
@@ -206,7 +190,7 @@ export const RegisterPage: React.FC = () => {
             </div>
 
             <Button type="submit" isLoading={isLoading} className="w-full py-3 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black rounded-xl text-sm mt-2">
-              Create Account & Send Verification
+              Create Account & Verify Email
             </Button>
           </form>
 
