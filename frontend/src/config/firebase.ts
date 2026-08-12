@@ -7,7 +7,7 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
  * Free Tier: 10,000 Phone SMS OTPs/month + Unlimited Email/Google Auth.
  */
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyABoh2-7rEpaA00UH0yfdfJylt53AguEnA',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyABoh2-7rEpaAO0UH0yfdfJylt53AguEnA',
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'guardianai-f6be8.firebaseapp.com',
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'guardianai-f6be8',
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'guardianai-f6be8.firebasestorage.app',
