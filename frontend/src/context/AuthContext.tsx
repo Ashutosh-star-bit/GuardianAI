@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   createUserWithEmailAndPassword,
   sendEmailVerification,
   reload,
@@ -187,50 +189,84 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
-  // ─── Real Firebase Google Sign-In (Opens Google Popup) ────────
+  // ─── Helper: Process a Firebase Google user into a local profile ────
+  const processGoogleUser = useCallback((firebaseUser: import('firebase/auth').User): { success: boolean; message: string } => {
+    const email = firebaseUser.email || 'unknown@email.com';
+    const name = firebaseUser.displayName || email.split('@')[0];
+
+    const savedScanCountStr = localStorage.getItem(`guardianai_scancount_${email}`);
+    const savedScanCount = savedScanCountStr ? parseInt(savedScanCountStr, 10) : 0;
+
+    const existingStr = localStorage.getItem(`guardianai_db_user_${email}`);
+    if (existingStr) {
+      try {
+        const existing = JSON.parse(existingStr);
+        existing.profile.isVerified = true;
+        existing.profile.fullName = name || existing.profile.fullName;
+        existing.profile.scanCount = savedScanCount || existing.profile.scanCount || 0;
+        if (existing.profile.subscriptionTier === 'FREE') existing.profile.monthlyLimit = 15;
+        localStorage.setItem(`guardianai_db_user_${email}`, JSON.stringify(existing));
+        setCurrentUser(existing.profile);
+        localStorage.setItem('guardianai_access_token', `gai_live_token_${existing.profile.id}`);
+        return { success: true, message: `Welcome back, ${existing.profile.fullName}!` };
+      } catch { /* fall through */ }
+    }
+
+    const googleProfile: UserProfile = {
+      id: `usr_google_${firebaseUser.uid.substring(0, 12)}`,
+      email,
+      fullName: name,
+      role: 'USER',
+      subscriptionTier: 'FREE',
+      scanCount: savedScanCount,
+      monthlyLimit: 15,
+      isVerified: true,
+      createdAt: new Date().toISOString(),
+    };
+
+    localStorage.setItem(`guardianai_db_user_${email}`, JSON.stringify({ password: '__google_sso__', profile: googleProfile }));
+    setCurrentUser(googleProfile);
+    localStorage.setItem('guardianai_access_token', `gai_live_token_${googleProfile.id}`);
+    return { success: true, message: `Welcome, ${name}! Authenticated via Google.` };
+  }, []);
+
+  // ─── Handle Google Redirect Result on Page Load ───────────────
+  const redirectHandled = useRef(false);
+  useEffect(() => {
+    if (redirectHandled.current) return;
+    redirectHandled.current = true;
+
+    getRedirectResult(auth).then((result) => {
+      if (result?.user) {
+        processGoogleUser(result.user);
+      }
+    }).catch((err) => {
+      console.error('[GOOGLE REDIRECT ERROR]', err);
+    });
+  }, [processGoogleUser]);
+
+  // ─── Real Firebase Google Sign-In (Popup → Redirect fallback) ─
   const googleSignIn = async (): Promise<{ success: boolean; message: string }> => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      const firebaseUser = result.user;
-      const email = firebaseUser.email || 'unknown@gmail.com';
-      const name = firebaseUser.displayName || email.split('@')[0];
-
-      const savedScanCountStr = localStorage.getItem(`guardianai_scancount_${email}`);
-      const savedScanCount = savedScanCountStr ? parseInt(savedScanCountStr, 10) : 0;
-
-      const existingStr = localStorage.getItem(`guardianai_db_user_${email}`);
-      if (existingStr) {
-        try {
-          const existing = JSON.parse(existingStr);
-          existing.profile.isVerified = true;
-          existing.profile.scanCount = savedScanCount || existing.profile.scanCount || 0;
-          if (existing.profile.subscriptionTier === 'FREE') existing.profile.monthlyLimit = 15;
-          setCurrentUser(existing.profile);
-          localStorage.setItem('guardianai_access_token', `gai_live_token_${existing.profile.id}`);
-          return { success: true, message: `Welcome back, ${existing.profile.fullName}!` };
-        } catch { /* fall through */ }
-      }
-
-      const googleProfile: UserProfile = {
-        id: `usr_google_${firebaseUser.uid.substring(0, 12)}`,
-        email,
-        fullName: name,
-        role: 'USER',
-        subscriptionTier: 'FREE',
-        scanCount: savedScanCount,
-        monthlyLimit: 15,
-        isVerified: true,
-        createdAt: new Date().toISOString(),
-      };
-
-      localStorage.setItem(`guardianai_db_user_${email}`, JSON.stringify({ password: '__google_sso__', profile: googleProfile }));
-      setCurrentUser(googleProfile);
-      localStorage.setItem('guardianai_access_token', `gai_live_token_${googleProfile.id}`);
-      return { success: true, message: `Welcome, ${name}! Authenticated via Google.` };
+      return processGoogleUser(result.user);
     } catch (error: any) {
       console.error('[GOOGLE SSO ERROR]', error);
-      if (error?.code === 'auth/popup-closed-by-user') return { success: false, message: 'Google sign-in popup was closed.' };
-      if (error?.code === 'auth/popup-blocked') return { success: false, message: 'Popup blocked. Please allow popups for this site.' };
+
+      // If popup was blocked or failed, fall back to redirect flow
+      if (error?.code === 'auth/popup-blocked' || error?.code === 'auth/cancelled-popup-request') {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return { success: true, message: 'Redirecting to Google sign-in...' };
+        } catch (redirectErr) {
+          return { success: false, message: 'Google sign-in failed. Please try again.' };
+        }
+      }
+
+      if (error?.code === 'auth/popup-closed-by-user') {
+        return { success: false, message: 'Google sign-in was cancelled. Click the button to try again.' };
+      }
+
       return { success: false, message: error?.message || 'Google authentication failed.' };
     }
   };

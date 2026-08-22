@@ -66,7 +66,7 @@ export const VerifyEmailPage: React.FC = () => {
           </Link>
           <h1 className="text-3xl font-black text-white tracking-tight">Verify Your Email</h1>
           <p className="text-sm text-slate-400">
-            Click the verification link sent to your Gmail inbox to activate your account.
+            Click the verification link sent to your email inbox to activate your account.
           </p>
         </div>
 
@@ -116,7 +116,7 @@ export const VerifyEmailPage: React.FC = () => {
                 <div className="bg-slate-950 rounded-lg p-3 text-left space-y-2 text-xs text-slate-300">
                   <p className="font-bold text-white text-sm">📧 What to do:</p>
                   <ol className="list-decimal list-inside space-y-1">
-                    <li>Open your <strong className="text-white">Gmail inbox</strong></li>
+                    <li>Open your <strong className="text-white">email inbox</strong></li>
                     <li>Find the email from <strong className="text-sky-300">noreply@guardianai-f6be8.firebaseapp.com</strong></li>
                     <li>Click the <strong className="text-white">verification link</strong> in the email</li>
                     <li>This page will <strong className="text-emerald-300">automatically detect</strong> the verification</li>

@@ -20,6 +20,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const { showToast } = useToast();
   const { login, googleSignIn } = useAuth();
   const navigate = useNavigate();
@@ -54,10 +55,10 @@ export const LoginPage: React.FC = () => {
   };
 
   const handleGoogleSignIn = async () => {
-    setIsLoading(true);
+    setIsGoogleLoading(true);
     try {
       const res = await googleSignIn();
-      setIsLoading(false);
+      setIsGoogleLoading(false);
       if (res.success) {
         showToast('success', 'Google Sign-In Successful', res.message);
         navigate(fromPath, { replace: true });
@@ -65,7 +66,7 @@ export const LoginPage: React.FC = () => {
         showToast('error', 'Google Sign-In Failed', res.message);
       }
     } catch (err) {
-      setIsLoading(false);
+      setIsGoogleLoading(false);
       showToast('error', 'Google Sign-In Failed', 'Could not authenticate via Google. Please try again.');
     }
   };
@@ -90,7 +91,7 @@ export const LoginPage: React.FC = () => {
           <button
             type="button"
             onClick={handleGoogleSignIn}
-            disabled={isLoading}
+            disabled={isGoogleLoading}
             className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white transition-all cursor-pointer disabled:opacity-50"
           >
             <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">

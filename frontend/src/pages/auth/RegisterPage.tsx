@@ -14,7 +14,7 @@ import { PasswordStrengthMeter } from '../../components/auth/PasswordStrengthMet
 const registerSchema = z
   .object({
     fullName: z.string().min(2, 'Full name must be at least 2 characters'),
-    email: z.string().email('Please enter a valid Gmail / Email address'),
+    email: z.string().email('Please enter a valid email address'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     confirmPassword: z.string(),
   })
@@ -28,6 +28,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 export const RegisterPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const { showToast } = useToast();
   const { registerUser, googleSignIn } = useAuth();
   const navigate = useNavigate();
@@ -51,7 +52,7 @@ export const RegisterPage: React.FC = () => {
       showToast(
         'success',
         'Verification Email Sent!',
-        `A verification link has been sent to ${data.email}. Please check your Gmail inbox and click the link.`
+        `A verification link has been sent to ${data.email}. Please check your inbox and click the link.`
       );
       navigate('/verify-email');
     } catch (err: any) {
@@ -70,10 +71,10 @@ export const RegisterPage: React.FC = () => {
   };
 
   const handleGoogleSignUp = async () => {
-    setIsLoading(true);
+    setIsGoogleLoading(true);
     try {
       const res = await googleSignIn();
-      setIsLoading(false);
+      setIsGoogleLoading(false);
       if (res.success) {
         showToast('success', 'Google Sign-Up Successful', res.message);
         navigate('/');
@@ -81,7 +82,7 @@ export const RegisterPage: React.FC = () => {
         showToast('error', 'Google Sign-Up Failed', res.message);
       }
     } catch (err) {
-      setIsLoading(false);
+      setIsGoogleLoading(false);
       showToast('error', 'Google Sign-Up Failed', 'Could not authenticate via Google. Please try again.');
     }
   };
@@ -104,7 +105,7 @@ export const RegisterPage: React.FC = () => {
           <button
             type="button"
             onClick={handleGoogleSignUp}
-            disabled={isLoading}
+            disabled={isGoogleLoading}
             className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-700 rounded-xl text-sm font-bold text-white transition-all cursor-pointer disabled:opacity-50"
           >
             <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -138,13 +139,13 @@ export const RegisterPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1">Gmail / Email Address</label>
+              <label className="text-xs font-bold text-slate-300 block mb-1">Email Address</label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
                   type="email"
                   {...register('email')}
-                  placeholder="you@gmail.com"
+                  placeholder="you@example.com"
                   className="w-full bg-slate-950 border border-slate-800 focus:border-sky-400 text-white text-sm rounded-xl pl-9 pr-3 py-2.5 outline-none transition-all"
                 />
               </div>

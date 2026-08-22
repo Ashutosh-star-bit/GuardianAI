@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
@@ -17,6 +17,11 @@ export const MainLayout: React.FC = () => {
   const isHomePage = location.pathname === '/';
   // Render sidebar on all protected pages, AND on Home page if logged in!
   const showSidebar = !isHomePage || isAuthenticated;
+
+  // Auto-close mobile sidebar when route changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-sky-500 selection:text-white transition-colors duration-200">
